@@ -76,6 +76,34 @@ it('shows a generic error and keeps the prior value when saving the threshold fa
 
     expect($screen->get('item')['low_stock_threshold'])->toBe(5);
     $screen->assertSee('Invalide.');
+    // The `item` assertion above holds even if the input revert never runs (the item was
+    // never mutated on failure either way) — assert the input itself reverted too, which is
+    // what ItemDetail::saveThreshold()'s else branch actually does.
+    $screen->assertSet('thresholdInput', '5');
+});
+
+it('saves a new supplier lead time', function () {
+    fakeStockHistory();
+    Http::fake(['*/products/1/lead-time' => Http::response(['message' => 'Délai mis à jour', 'product' => ['supplier_lead_time_days' => 14]], 200)]);
+
+    $screen = Native::visit('/stock/item/product/1', data: ['item' => ['type' => 'product', 'id' => 1, 'name' => 'T-shirt', 'reference' => 'TS-1', 'quantity' => 10, 'low_stock_threshold' => 5, 'supplier_lead_time_days' => 7]])
+        ->set('leadTimeInput', '14')
+        ->call('saveLeadTime');
+
+    expect($screen->get('item')['supplier_lead_time_days'])->toBe(14);
+});
+
+it('shows a generic error and keeps the prior value when saving the lead time fails', function () {
+    fakeStockHistory();
+    Http::fake(['*/products/1/lead-time' => Http::response(['message' => 'Erreur de validation.', 'errors' => ['supplier_lead_time_days' => ['Invalide.']]], 422)]);
+
+    $screen = Native::visit('/stock/item/product/1', data: ['item' => ['type' => 'product', 'id' => 1, 'name' => 'T-shirt', 'reference' => 'TS-1', 'quantity' => 10, 'low_stock_threshold' => 5, 'supplier_lead_time_days' => 7]])
+        ->set('leadTimeInput', '14')
+        ->call('saveLeadTime');
+
+    expect($screen->get('item')['supplier_lead_time_days'])->toBe(7);
+    $screen->assertSee('Invalide.');
+    $screen->assertSet('leadTimeInput', '7');
 });
 
 it('is fully accessible', function () {
