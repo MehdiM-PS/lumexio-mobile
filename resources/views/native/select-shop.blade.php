@@ -1,0 +1,16 @@
+<column fill class="safe-area bg-theme-background px-6 py-6 gap-3">
+    <text class="text-xl font-bold text-theme-on-background" font="InstrumentSerif-Regular">
+        Choisis une boutique
+    </text>
+
+    @foreach ($shops as $shop)
+        <pressable
+            ref="shop-{{ $shop['id'] }}"
+            class="w-full items-start gap-1 rounded-lg border border-theme-outline bg-theme-surface px-4 py-[14]"
+            @press="select('{{ $shop['id'] }}')"
+        >
+            <text class="text-base font-semibold text-theme-on-surface">{{ $shop['name'] }}</text>
+            <text class="text-sm text-theme-on-surface-variant">{{ $shop['domain'] }}</text>
+        </pressable>
+    @endforeach
+</column>
