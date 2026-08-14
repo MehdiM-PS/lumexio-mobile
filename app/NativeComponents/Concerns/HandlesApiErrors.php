@@ -15,6 +15,13 @@ trait HandlesApiErrors
 {
     public ?string $lastApiError = null;
 
+    /**
+     * Execute an API call and handle common exceptions.
+     *
+     * Callers are responsible for invoking resetApiError() before the first
+     * callApi() call in their action method. This allows actions with multiple
+     * sequential API calls to preserve an earlier error if a later call succeeds.
+     */
     protected function callApi(Closure $call): mixed
     {
         try {
@@ -36,5 +43,10 @@ trait HandlesApiErrors
         }
 
         return null;
+    }
+
+    protected function resetApiError(): void
+    {
+        $this->lastApiError = null;
     }
 }

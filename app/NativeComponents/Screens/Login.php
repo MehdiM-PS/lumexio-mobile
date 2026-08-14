@@ -20,7 +20,7 @@ class Login extends NativeComponent
     public function submit(): void
     {
         $this->loading = true;
-        $this->lastApiError = null;
+        $this->resetApiError();
 
         $user = $this->callApi(fn () => app(AuthService::class)->login(
             $this->email,

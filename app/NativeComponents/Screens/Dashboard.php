@@ -31,7 +31,7 @@ class Dashboard extends NativeComponent
     public function refresh(): void
     {
         $this->loading = true;
-        $this->lastApiError = null;
+        $this->resetApiError();
 
         $metrics = $this->callApi(fn () => app(LumexioApi::class)->get('/dashboard/metrics'));
         $charts = $this->callApi(fn () => app(LumexioApi::class)->get('/dashboard/charts'));
