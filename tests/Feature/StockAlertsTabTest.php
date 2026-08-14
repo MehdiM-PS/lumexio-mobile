@@ -39,6 +39,20 @@ it('shows the stock overview stats', function () {
         ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'stat-low-stock' && ($n['props']['text'] ?? null) === '3');
 });
 
+it('filters by unread-only status', function () {
+    fakeAlertEndpoints(alerts: [stockAlert()]);
+
+    Native::test(StockAlertsTab::class)->call('toggleUnreadOnly');
+
+    // toggleUnreadOnly() flips $unreadOnly from null to true, and refresh()
+    // maps that to ['is_read' => ! $this->unreadOnly] — i.e. "unread only"
+    // must request is_read=false (unread), not is_read=true. The double
+    // negation is easy to get backwards silently, so assert the actual
+    // query param sent rather than just that a request fired.
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/alerts?')
+        && ($request['is_read'] ?? null) === false);
+});
+
 it('marks a single alert as read', function () {
     fakeAlertEndpoints(alerts: [stockAlert(['id' => 5])]);
 
