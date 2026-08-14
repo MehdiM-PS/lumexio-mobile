@@ -1,0 +1,86 @@
+<?php
+
+namespace App\NativeComponents;
+
+use App\NativeComponents\Concerns\HandlesApiErrors;
+use App\Services\LumexioApi;
+use Illuminate\View\View;
+use Native\Mobile\Edge\NativeComponent;
+
+class StockProductsTab extends NativeComponent
+{
+    use HandlesApiErrors;
+
+    public string $search = '';
+
+    public string $statusFilter = 'all';
+
+    public array $items = [];
+
+    public bool $loading = true;
+
+    public function mount(): void
+    {
+        $this->refresh();
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->refresh();
+    }
+
+    public function setStatusFilter(string $filter): void
+    {
+        $this->statusFilter = $filter;
+        $this->refresh();
+    }
+
+    public function refresh(): void
+    {
+        $this->resetApiError();
+        $this->loading = true;
+
+        $query = ['search' => $this->search, 'filter' => $this->statusFilter, 'per_page' => 50];
+
+        $productsData = $this->callApi(fn () => app(LumexioApi::class)->get('/products', $query));
+        $variantsData = $this->callApi(fn () => app(LumexioApi::class)->get(
+            '/products/variants',
+            ['filter' => $this->statusFilter, 'per_page' => 50],
+        ));
+
+        $products = $productsData['products'] ?? [];
+        $variants = $variantsData['variants'] ?? [];
+
+        $productIdsWithVariants = collect($variants)->pluck('product_id')->unique();
+
+        $standaloneProducts = collect($products)
+            ->reject(fn ($p) => $productIdsWithVariants->contains($p['id']))
+            ->map(fn ($p) => array_merge($p, ['type' => 'product']));
+
+        $variantsWithType = collect($variants)
+            ->when($this->search !== '', fn ($c) => $c->filter(
+                fn ($v) => str_contains(mb_strtolower($v['name'] ?? ''), mb_strtolower($this->search))
+                    || str_contains(mb_strtolower($v['reference'] ?? ''), mb_strtolower($this->search))
+            ))
+            ->map(fn ($v) => array_merge($v, ['type' => 'variant']));
+
+        $this->items = $standaloneProducts->concat($variantsWithType)
+            ->sortBy('name')
+            ->values()
+            ->all();
+
+        $this->loading = false;
+    }
+
+    public function select(string $type, int $id): void
+    {
+        $item = collect($this->items)->first(fn ($i) => $i['type'] === $type && $i['id'] === $id);
+
+        $this->emit('select-item', $type, $id, $item);
+    }
+
+    public function render(): View
+    {
+        return view('native.stock-products-tab');
+    }
+}
