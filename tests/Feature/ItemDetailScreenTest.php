@@ -160,3 +160,67 @@ it('is fully accessible', function () {
     Native::visit('/stock/item/product/1', data: ['item' => ['type' => 'product', 'id' => 1, 'name' => 'T-shirt', 'reference' => 'TS-1', 'quantity' => 10, 'low_stock_threshold' => 5, 'supplier_lead_time_days' => 7]])
         ->assertAccessible();
 });
+
+// Bug 1 + 2 fix: an inline <top-bar> (no NativeLayout — this screen is a
+// top-level route outside TabsLayout's nativeGroup) gives the screen the
+// real NavigationStack-backed chrome: automatic top safe-area handling
+// AND a back chevron. The inline bar is hoisted out of the content tree
+// into the `native_root_stack` sentinel's own props (NOT rendered as a
+// `top_bar` element in-tree) — see NativeComponent::wrapWithChrome()/
+// wrapWithNativeChrome() in vendor/nativephp/mobile.
+//
+// `back` is explicit (not left to "pushed screens get it for free"):
+// ItemDetail publishes its OWN `native_root_stack`, separate from the
+// tab it's pushed from (Stock renders via `native_root_tabs` +
+// PerTabNavigationCoordinator, a different Swift coordinator). Per
+// NavigationCoordinator.swift, that stack's `rootUri` is seeded from
+// the FIRST uri it ever sees — which is ItemDetail's own URI, making it
+// `isRoot: true` on ITS stack even though PHP's router considers it
+// pushed. NativeRootStackRenderer.swift only draws a manual chevron
+// when `showBack && isRoot`, so without an explicit `back` this screen
+// would have no way out. (Verified via source inspection only — no iOS
+// simulator available in this environment.)
+it('renders an inline top bar with the item name as the title and a back button, hoisted into native chrome', function () {
+    fakeStockHistory();
+
+    Native::visit('/stock/item/product/1', data: ['item' => ['type' => 'product', 'id' => 1, 'name' => 'T-shirt', 'reference' => 'TS-1', 'quantity' => 10, 'low_stock_threshold' => 5, 'supplier_lead_time_days' => 7]])
+        ->assertNavTitle('T-shirt')
+        ->assertElement('native_root_stack', fn (array $n): bool => ($n['props']['title'] ?? null) === 'T-shirt' && ($n['props']['back'] ?? null) === true)
+        // Hoisted, not drawn in-tree.
+        ->assertMissingElement('top_bar');
+});
+
+// Bug 3 fix: pull-to-refresh, wired to loadHistory() — the only genuinely
+// re-fetchable data on this screen (the item's own base fields come from
+// navigation data, not a live fetch).
+it('wraps its content in a refreshable element wired to loadHistory', function () {
+    fakeStockHistory();
+
+    Native::visit('/stock/item/product/1', data: ['item' => ['type' => 'product', 'id' => 1, 'name' => 'T-shirt', 'reference' => 'TS-1', 'quantity' => 10, 'low_stock_threshold' => 5, 'supplier_lead_time_days' => 7]])
+        // Refreshable::resolveProps() registers the bound method as
+        // props.on_refresh (a numeric callback id) — the strongest check
+        // the wire-tree format supports for "is a handler actually bound"
+        // short of decoding the CallbackRegistry.
+        ->assertElement('refreshable', fn (array $n): bool => isset($n['props']['on_refresh']));
+});
+
+it('refetches stock history on pull-to-refresh', function () {
+    Http::fake(['*/products/stock-history*' => Http::sequence()
+        ->push(['history' => [
+            ['date' => '2026-08-14', 'date_formatted' => '14/08', 'quantity' => 10, 'quantity_sold' => 2, 'variation' => -2],
+        ]], 200)
+        ->push(['history' => [
+            ['date' => '2026-08-14', 'date_formatted' => '14/08', 'quantity' => 25, 'quantity_sold' => 2, 'variation' => -2],
+        ]], 200),
+    ]);
+
+    $screen = Native::visit('/stock/item/product/1', data: ['item' => ['type' => 'product', 'id' => 1, 'name' => 'T-shirt', 'reference' => 'TS-1', 'quantity' => 10, 'low_stock_threshold' => 5, 'supplier_lead_time_days' => 7]]);
+
+    expect($screen->get('historyQuantities'))->toBe([10]);
+
+    // The refreshable's @refresh handler calls this same method — this
+    // proves a second call re-fetches rather than reusing cached data.
+    $screen->call('loadHistory');
+
+    expect($screen->get('historyQuantities'))->toBe([25]);
+});

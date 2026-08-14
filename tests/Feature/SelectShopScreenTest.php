@@ -98,3 +98,42 @@ it('navigates to the dashboard when the user taps a shop', function () {
 
     expect(LocalState::current()->fresh()->shop_id)->toBe('shop-2');
 });
+
+// Bug 3 fix: pull-to-refresh on the shop list, wired to the same private
+// fetchShops() the existing retry() button already reuses.
+it('wraps the shop list in a refreshable element', function () {
+    Http::fake(['*/shops' => Http::response(['shops' => [
+        ['id' => 'shop-1', 'name' => 'Ma Boutique', 'domain' => 'ma-boutique.com'],
+        ['id' => 'shop-2', 'name' => 'Autre Boutique', 'domain' => 'autre.com'],
+    ]], 200)]);
+
+    // Refreshable::resolveProps() registers the bound method as
+    // props.on_refresh (a numeric callback id) — the strongest check the
+    // wire-tree format supports for "is a handler actually bound" short
+    // of decoding the CallbackRegistry.
+    Native::test(SelectShop::class)
+        ->assertElement('refreshable', fn (array $n): bool => isset($n['props']['on_refresh']));
+});
+
+it('refetches shops on pull-to-refresh', function () {
+    Http::fake(['*/shops' => Http::sequence()
+        ->push(['shops' => [
+            ['id' => 'shop-1', 'name' => 'Ma Boutique', 'domain' => 'ma-boutique.com'],
+            ['id' => 'shop-2', 'name' => 'Autre Boutique', 'domain' => 'autre.com'],
+        ]], 200)
+        ->push(['shops' => [
+            ['id' => 'shop-1', 'name' => 'Ma Boutique', 'domain' => 'ma-boutique.com'],
+            ['id' => 'shop-3', 'name' => 'Nouvelle Boutique', 'domain' => 'nouvelle.com'],
+        ]], 200),
+    ]);
+
+    $screen = Native::test(SelectShop::class)
+        ->assertSee('Autre Boutique');
+
+    // The refreshable's @refresh handler calls this same method — this
+    // proves pull-to-refresh actually re-fetches rather than reusing the
+    // shops fetched on mount.
+    $screen->call('refresh')
+        ->assertSee('Nouvelle Boutique')
+        ->assertDontSee('Autre Boutique');
+});

@@ -24,6 +24,11 @@ class SelectShop extends NativeComponent
         $this->fetchShops();
     }
 
+    public function refresh(): void
+    {
+        $this->fetchShops();
+    }
+
     private function fetchShops(): void
     {
         $this->resetApiError();

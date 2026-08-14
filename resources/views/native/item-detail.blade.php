@@ -1,3 +1,26 @@
+{{--
+    `back` (show-navigation-icon) IS required here, despite this screen only
+    ever being reached via navigate() (i.e. always pushed). Source-verified
+    (no on-device test — no simulator in this environment):
+
+    - NativeRootStackRenderer.swift only draws a manual back chevron when
+      `showBack && isRoot` — pushed levels (`isRoot == false`) get the
+      chevron for free from SwiftUI's own NavigationStack, no prop needed.
+    - BUT this screen is a top-level route with NO NativeLayout, so it
+      publishes its own `native_root_stack` sentinel — a DIFFERENT
+      NavigationStack from the tab it was pushed from (Stock, which
+      renders via `native_root_tabs` + PerTabNavigationCoordinator).
+    - NavigationCoordinator.swift (the singleton `native_root_stack` uses)
+      seeds `rootUri` from the FIRST uri it ever receives. Since this app
+      never renders a top-level `native_root_stack` before ItemDetail,
+      that first publish IS ItemDetail's own URI → `isRoot: true` on this
+      screen's own stack, even though PHP's router considers it "pushed".
+    - `isRoot: true` + `back` unset (defaults false) => NO chevron at all
+      and no way back. Hence: explicit `back` here.
+--}}
+<top-bar title="{{ $item['name'] ?? 'Détail' }}" back />
+
+<refreshable @refresh="loadHistory">
 <column fill class="bg-theme-background gap-3 p-4">
     @if ($lastApiError)
         <row ref="item-detail-error" class="w-full items-center gap-2 rounded-lg bg-theme-destructive/15 px-4 py-[10]">
@@ -69,3 +92,4 @@
         </text>
     @endif
 </column>
+</refreshable>
