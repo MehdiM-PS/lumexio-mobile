@@ -40,61 +40,31 @@ return [
     'theme' => [
 
         'light' => [
-            // Primary brand color — used for filled buttons, active states, key accents.
-            'primary' => '#0F766E',
+            'primary' => '#0D9488',
             'on-primary' => '#FFFFFF',
 
-            // Secondary / muted action color.
-            'secondary' => '#475569',
+            'secondary' => '#4B5563',
             'on-secondary' => '#FFFFFF',
 
-            // Surface = cards, sheets, dialogs. Background = page root.
             'surface' => '#FFFFFF',
-            'on-surface' => '#1B1B18',
-            'background' => '#FAFAFA',
-            'on-background' => '#1B1B18',
+            'on-surface' => '#111827',
+            'background' => '#FFFFFF',
+            'on-background' => '#111827',
 
-            // Surface variant = filled text fields, muted tonal surfaces.
-            // on-surface-variant = muted label/hint text on those surfaces.
-            'surface-variant' => '#FAFAFA',
-            'on-surface-variant' => '#706F6C',
+            'surface-variant' => '#F9FAFB',
+            'on-surface-variant' => '#6B7280',
 
-            // Outline = neutral borders (text fields, dividers, cards).
-            'outline' => '#E5E5E5',
+            'outline' => '#E5E7EB',
 
-            // Destructive actions — maps to `variant="destructive"` on components.
-            'destructive' => '#B91C1C',
+            'destructive' => '#DC2626',
             'on-destructive' => '#FFFFFF',
 
-            // Tertiary accent — for highlights, badges, emphasis not covered by primary.
-            'accent' => '#C2410C',
+            'accent' => '#F59E0B',
             'on-accent' => '#FFFFFF',
         ],
 
         'dark' => [
-            // Leave empty or partial to auto-derive from `light` (luminance inversion).
-            // Specify any token here to override the derived value.
-            'primary' => '#14B8A6',
-            'on-primary' => '#FFFFFF',
-
-            'secondary' => '#94A3B8',
-            'on-secondary' => '#0F172A',
-
-            'surface' => '#161615',
-            'on-surface' => '#EDEDEC',
-            'background' => '#0A0A0A',
-            'on-background' => '#EDEDEC',
-
-            'surface-variant' => '#1F1F1E',
-            'on-surface-variant' => '#A1A09A',
-
-            'outline' => '#3E3E3A',
-
-            'destructive' => '#F87171',
-            'on-destructive' => '#0F172A',
-
-            'accent' => '#FDBA74',
-            'on-accent' => '#0F172A',
+            // Left empty on purpose — auto-derived from `light` by luminance inversion.
         ],
 
         // Corner radii (points / dp).
@@ -111,9 +81,7 @@ return [
     ],
 
     'fonts' => [
-        'default' => 'System',
-        'accent' => 'Archivo+Black-Regular',
-        'lobster' => 'Lobster+Two-Regular',
+        'default' => 'PlusJakartaSans-Regular',
     ],
 
 ];
