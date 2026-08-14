@@ -64,3 +64,28 @@ it('shows a generic error instead of crashing when the network is unavailable', 
 
     Native::visit('/dashboard')->assertSee('Connexion indisponible');
 });
+
+it('shows a generic error instead of crashing when the charts endpoint returns a 500', function () {
+    Http::fake([
+        '*/dashboard/charts*' => Http::response(['message' => 'Server Error'], 500),
+        '*/dashboard/metrics*' => Http::response(['metrics' => [
+            'revenue_today' => 320.5,
+            'orders_today' => 4,
+            'revenue_period' => 8450.0,
+            'orders_period' => 96,
+            'avg_order_value' => 88.02,
+            'products_count' => 214,
+            'low_stock_count' => 6,
+            'customers_count' => 312,
+        ]], 200),
+        '*/dashboard/recent-orders*' => Http::response(['orders' => [
+            ['id' => 1, 'reference' => 'ORD001', 'total_paid' => 45.9, 'order_date' => '2026-08-13T10:00:00Z',
+                'customer' => ['firstname' => 'Jean', 'lastname' => 'Dupont']],
+        ]], 200),
+        '*/dashboard/low-stock*' => Http::response(['products' => [
+            ['id' => 1, 'name' => 'T-shirt bleu', 'quantity' => 2, 'low_stock_threshold' => 5],
+        ]], 200),
+    ]);
+
+    Native::visit('/dashboard')->assertSee('Server Error');
+});

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\Api\NetworkUnavailableApiException;
 use App\Exceptions\Api\ProRequiredApiException;
 use App\Exceptions\Api\RateLimitedApiException;
+use App\Exceptions\Api\ServerErrorApiException;
 use App\Exceptions\Api\UnauthenticatedApiException;
 use App\Exceptions\Api\ValidationApiException;
 use App\Models\LocalState;
@@ -46,19 +47,22 @@ class LumexioApi
             throw new NetworkUnavailableApiException('Connexion indisponible. Vérifie ta connexion et réessaie.');
         }
 
-        return match ($response->status()) {
-            401 => throw new UnauthenticatedApiException('Session expirée.'),
-            403 => throw new ProRequiredApiException(
+        return match (true) {
+            $response->successful() => $response->json(),
+            $response->status() === 401 => throw new UnauthenticatedApiException('Session expirée.'),
+            $response->status() === 403 => throw new ProRequiredApiException(
                 $response->json('message') ?? 'Fonctionnalité réservée au plan Pro.'
             ),
-            422 => throw new ValidationApiException(
+            $response->status() === 422 => throw new ValidationApiException(
                 $response->json('message') ?? 'Erreur de validation.',
                 $response->json('errors') ?? []
             ),
-            429 => throw new RateLimitedApiException(
+            $response->status() === 429 => throw new RateLimitedApiException(
                 $response->json('message') ?? 'Trop de requêtes, réessaie dans un instant.'
             ),
-            default => $response->throw()->json(),
+            default => throw new ServerErrorApiException(
+                $response->json('message') ?? 'Une erreur est survenue. Réessaie plus tard.'
+            ),
         };
     }
 }

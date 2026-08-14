@@ -16,6 +16,8 @@ class SelectShop extends NativeComponent
 
     public function mount(): void
     {
+        $this->lastApiError = null;
+
         $data = $this->callApi(fn () => app(LumexioApi::class)->get('/shops'));
 
         $this->shops = $data['shops'] ?? [];

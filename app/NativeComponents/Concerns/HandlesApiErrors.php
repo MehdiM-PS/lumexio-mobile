@@ -5,6 +5,7 @@ namespace App\NativeComponents\Concerns;
 use App\Exceptions\Api\NetworkUnavailableApiException;
 use App\Exceptions\Api\ProRequiredApiException;
 use App\Exceptions\Api\RateLimitedApiException;
+use App\Exceptions\Api\ServerErrorApiException;
 use App\Exceptions\Api\UnauthenticatedApiException;
 use App\Exceptions\Api\ValidationApiException;
 use Closure;
@@ -16,8 +17,6 @@ trait HandlesApiErrors
 
     protected function callApi(Closure $call): mixed
     {
-        $this->lastApiError = null;
-
         try {
             return $call();
         } catch (UnauthenticatedApiException) {
@@ -31,6 +30,8 @@ trait HandlesApiErrors
             $this->lastApiError = $e->getMessage();
             Dialog::toast($e->getMessage());
         } catch (NetworkUnavailableApiException $e) {
+            $this->lastApiError = $e->getMessage();
+        } catch (ServerErrorApiException $e) {
             $this->lastApiError = $e->getMessage();
         }
 

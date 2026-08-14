@@ -1,11 +1,14 @@
 <?php
 
+use App\Exceptions\Api\NetworkUnavailableApiException;
 use App\Exceptions\Api\ProRequiredApiException;
 use App\Exceptions\Api\RateLimitedApiException;
+use App\Exceptions\Api\ServerErrorApiException;
 use App\Exceptions\Api\UnauthenticatedApiException;
 use App\Exceptions\Api\ValidationApiException;
 use App\Models\LocalState;
 use App\Services\LumexioApi;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 
 it('sends a bearer token when one is stored locally', function () {
@@ -76,10 +79,22 @@ it('throws RateLimitedApiException on a 429 response', function () {
 })->throws(RateLimitedApiException::class);
 
 it('throws NetworkUnavailableApiException when the request cannot connect at all', function () {
-    Http::fake(fn () => throw new \Illuminate\Http\Client\ConnectionException('Could not connect'));
+    Http::fake(fn () => throw new ConnectionException('Could not connect'));
 
     app(LumexioApi::class)->get('/dashboard/metrics');
-})->throws(\App\Exceptions\Api\NetworkUnavailableApiException::class);
+})->throws(NetworkUnavailableApiException::class);
+
+it('throws ServerErrorApiException on a 500 response with the API message', function () {
+    Http::fake(['*' => Http::response(['message' => 'Server Error'], 500)]);
+
+    app(LumexioApi::class)->get('/dashboard/charts');
+})->throws(ServerErrorApiException::class, 'Server Error');
+
+it('throws ServerErrorApiException with a generic message when the 500 response has none', function () {
+    Http::fake(['*' => Http::response([], 500)]);
+
+    app(LumexioApi::class)->get('/dashboard/charts');
+})->throws(ServerErrorApiException::class, 'Une erreur est survenue. Réessaie plus tard.');
 
 it('returns the decoded json body on success', function () {
     Http::fake(['*' => Http::response(['metrics' => ['revenue_today' => 12.5]], 200)]);
