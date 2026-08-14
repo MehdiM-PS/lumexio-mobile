@@ -89,3 +89,59 @@ it('emits select-item when a row is tapped', function () {
 
     Native::test(StockProductsTab::class)->call('select', 'product', 4);
 });
+
+// Bug fix: the status filter chips were bound with `@press`, but Chip only
+// exposes an `onChange()` callback (props.on_change) — it has no press/tap
+// registration at all, so `@press` silently bound nothing and tapping a
+// chip did nothing. Comparing against callbackIdFor() (content-addressed)
+// rather than a plain isset() proves each chip is bound to the RIGHT
+// setStatusFilter(...) call, not just bound to *something*.
+it('wires each status chip to on_change with the correct filter', function () {
+    fakeStockEndpoints(products: [stockProduct()], variants: []);
+
+    Native::test(StockProductsTab::class)
+        ->assertElement('chip', fn (array $n): bool => ($n['props']['label'] ?? null) === 'Tous'
+            && ($n['props']['on_change'] ?? null) === callbackIdFor("setStatusFilter('all')"))
+        ->assertElement('chip', fn (array $n): bool => ($n['props']['label'] ?? null) === 'Stock bas'
+            && ($n['props']['on_change'] ?? null) === callbackIdFor("setStatusFilter('low')"))
+        ->assertElement('chip', fn (array $n): bool => ($n['props']['label'] ?? null) === 'Rupture'
+            && ($n['props']['on_change'] ?? null) === callbackIdFor("setStatusFilter('out')"));
+});
+
+// Behavioral counterpart: actually fire the chip's wire event by its ref
+// (as a real device tap would — resolved through the node's own on_change
+// prop) rather than calling setStatusFilter() directly, and confirm it
+// results in the correct API request.
+//
+// Deliberately targets by ref, NOT by the bare expression
+// "setStatusFilter('low')": CallbackRegistry ids are content-addressed, so
+// the broken `@press="setStatusFilter('low')"` binding registers the exact
+// same id (base Element::toArray() unconditionally registers pressMethod
+// as a top-level `on_press`, even though Chip::resolveProps() never reads
+// it) — targeting by expression would pass whether the chip's callback is
+// wired to on_press or on_change, i.e. it wouldn't catch this bug. Ref
+// targeting forces the harness through callbackIdByRef(), which only
+// finds the callback under props.on_change — proving the CHIP NODE itself,
+// not just the registry, is bound correctly.
+it('requests the low-stock filter when the "Stock bas" chip is tapped', function () {
+    fakeStockEndpoints(products: [stockProduct()], variants: []);
+
+    Native::test(StockProductsTab::class)->toggle('chip-status-low', true);
+
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/products?') && ($request['filter'] ?? null) === 'low');
+});
+
+// Bug fix: <refreshable> was nested as one sibling among several inside the
+// outer fill column, so it never claimed the remaining vertical space and
+// the list didn't scroll. It must now be the OUTERMOST element (matching
+// the working dashboard.blade.php pattern), wrapping the whole screen.
+it('wraps the entire screen in a refreshable element, not just the list', function () {
+    fakeStockEndpoints(products: [stockProduct()], variants: []);
+
+    $screen = Native::test(StockProductsTab::class);
+
+    expect($screen->tree()['type'])->toBe('refreshable');
+    $screen->assertElement('outlined_text_input', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-search')
+        ->assertElement('chip', fn (array $n): bool => ($n['props']['label'] ?? null) === 'Tous')
+        ->assertElement('pressable');
+});

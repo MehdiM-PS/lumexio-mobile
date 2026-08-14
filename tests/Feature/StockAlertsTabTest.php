@@ -88,3 +88,56 @@ it('is fully accessible', function () {
 
     Native::test(StockAlertsTab::class)->assertAccessible();
 });
+
+// Bug fix: the "Non lues uniquement" chip was bound with `@press`, but Chip
+// only exposes an `onChange()` callback (props.on_change) — it has no
+// press/tap registration at all, so `@press` silently bound nothing.
+// Comparing against callbackIdFor() (content-addressed) proves it's bound
+// to THIS method, not just bound to something.
+it('wires the unread-only chip to on_change on toggleUnreadOnly', function () {
+    fakeAlertEndpoints(alerts: [stockAlert()]);
+
+    Native::test(StockAlertsTab::class)
+        ->assertElement('chip', fn (array $n): bool => ($n['props']['label'] ?? null) === 'Non lues uniquement'
+            && ($n['props']['on_change'] ?? null) === callbackIdFor('toggleUnreadOnly'));
+});
+
+// Behavioral counterpart: actually fire the chip's wire event by its ref
+// (as a real device tap would — resolved through the node's own on_change
+// prop) rather than calling toggleUnreadOnly() directly, and confirm it
+// results in the correct API request.
+//
+// Deliberately targets by ref, NOT by the bare method name
+// "toggleUnreadOnly": CallbackRegistry ids are content-addressed, so the
+// broken `@press="toggleUnreadOnly"` binding registers the exact same id
+// (base Element::toArray() unconditionally registers pressMethod as a
+// top-level `on_press`, even though Chip::resolveProps() never reads it)
+// — targeting by method name would pass whether the chip's callback is
+// wired to on_press or on_change, i.e. it wouldn't catch this bug. Ref
+// targeting forces the harness through callbackIdByRef(), which only
+// finds the callback under props.on_change — proving the CHIP NODE itself,
+// not just the registry, is bound correctly.
+it('requests unread-only alerts when the chip is tapped', function () {
+    fakeAlertEndpoints(alerts: [stockAlert()]);
+
+    Native::test(StockAlertsTab::class)->toggle('chip-unread-only', true);
+
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/alerts?')
+        && ($request['is_read'] ?? null) === false);
+});
+
+// Bug fix: <refreshable> was nested as one sibling among several inside the
+// outer fill column, so it never claimed the remaining vertical space and
+// the alert list didn't scroll. It must now be the OUTERMOST element
+// (matching the working dashboard.blade.php pattern), wrapping the whole
+// screen — stats, chip/button row, and the list.
+it('wraps the entire screen in a refreshable element, not just the list', function () {
+    fakeAlertEndpoints(alerts: [stockAlert()]);
+
+    $screen = Native::test(StockAlertsTab::class);
+
+    expect($screen->tree()['type'])->toBe('refreshable');
+    $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'stat-total')
+        ->assertElement('chip', fn (array $n): bool => ($n['props']['label'] ?? null) === 'Non lues uniquement')
+        ->assertElement('button', fn (array $n): bool => ($n['ref'] ?? null) === 'mark-all-read');
+});

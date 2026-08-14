@@ -1,24 +1,24 @@
-<column fill class="bg-theme-background gap-3 p-4">
-    @if ($lastApiError)
-        <row class="w-full items-center gap-2 rounded-lg bg-theme-destructive/15 px-4 py-[10]">
-            <text class="flex-1 text-sm text-theme-destructive">{{ $lastApiError }}</text>
+<refreshable @refresh="refresh">
+    <column fill class="bg-theme-background gap-3 p-4">
+        @if ($lastApiError)
+            <row class="w-full items-center gap-2 rounded-lg bg-theme-destructive/15 px-4 py-[10]">
+                <text class="flex-1 text-sm text-theme-destructive">{{ $lastApiError }}</text>
+            </row>
+        @endif
+
+        <outlined-text-input
+            ref="stock-search"
+            native:model.debounce.400ms="search"
+            label="Rechercher"
+            placeholder="Nom ou référence"
+        />
+
+        <row class="w-full gap-2">
+            <chip ref="chip-status-all" label="Tous" :selected="$statusFilter === 'all'" @change="setStatusFilter('all')" />
+            <chip ref="chip-status-low" label="Stock bas" :selected="$statusFilter === 'low'" @change="setStatusFilter('low')" />
+            <chip ref="chip-status-out" label="Rupture" :selected="$statusFilter === 'out'" @change="setStatusFilter('out')" />
         </row>
-    @endif
 
-    <outlined-text-input
-        ref="stock-search"
-        native:model.debounce.400ms="search"
-        label="Rechercher"
-        placeholder="Nom ou référence"
-    />
-
-    <row class="w-full gap-2">
-        <chip label="Tous" :selected="$statusFilter === 'all'" @press="setStatusFilter('all')" />
-        <chip label="Stock bas" :selected="$statusFilter === 'low'" @press="setStatusFilter('low')" />
-        <chip label="Rupture" :selected="$statusFilter === 'out'" @press="setStatusFilter('out')" />
-    </row>
-
-    <refreshable @refresh="refresh">
         <column class="w-full gap-2">
             @forelse ($items as $item)
                 <pressable
@@ -40,5 +40,5 @@
                 @endif
             @endforelse
         </column>
-    </refreshable>
-</column>
+    </column>
+</refreshable>
