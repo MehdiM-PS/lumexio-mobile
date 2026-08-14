@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\LocalState;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 
@@ -31,4 +32,36 @@ it('still goes to shop selection when a shop was already selected, to revalidate
     ], 200)]);
 
     Native::visit('/')->assertReplacedWith('/shops/select');
+});
+
+it('shows a retry action instead of an infinite spinner when the API is unreachable at boot', function () {
+    LocalState::current()->update(['token' => 'valid-token']);
+    Http::fake(fn () => throw new ConnectionException('Could not connect'));
+
+    $test = Native::visit('/')
+        ->assertNoNavigation()
+        ->assertSee('Connexion indisponible. Vérifie ta connexion et réessaie.');
+
+    expect($test->get('lastApiError'))->not->toBeNull();
+});
+
+it('proceeds to shop selection when retry succeeds after a failed boot', function () {
+    LocalState::current()->update(['token' => 'valid-token']);
+
+    $calls = 0;
+    Http::fake(function () use (&$calls) {
+        $calls++;
+
+        if ($calls === 1) {
+            throw new ConnectionException('Could not connect');
+        }
+
+        return Http::response([
+            'user' => ['id' => 1, 'name' => 'Mehdi', 'email' => 'mehdi@lumexio.test', 'is_subscribed' => true],
+        ], 200);
+    });
+
+    $test = Native::visit('/')->assertNoNavigation();
+
+    $test->call('retry')->assertReplacedWith('/shops/select');
 });

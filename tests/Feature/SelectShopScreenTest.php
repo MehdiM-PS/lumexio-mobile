@@ -61,6 +61,31 @@ it('shows the API error message when fetching shops fails', function () {
         ->assertSee('Connexion indisponible. Vérifie ta connexion et réessaie.');
 });
 
+it('shows an explanatory message and a retry action when the account has zero accessible shops', function () {
+    Http::fake(['*/shops' => Http::response(['shops' => []], 200)]);
+
+    Native::test(SelectShop::class)
+        ->assertNoNavigation()
+        ->assertSee('Aucune boutique accessible avec ce compte.');
+});
+
+it('retries the shops fetch when the retry action is pressed after a zero-shops response', function () {
+    Http::fake(['*/shops' => Http::sequence()
+        ->push(['shops' => []], 200)
+        ->push(['shops' => [
+            ['id' => 'shop-1', 'name' => 'Ma Boutique', 'domain' => 'ma-boutique.com'],
+        ]], 200),
+    ]);
+
+    $test = Native::test(SelectShop::class)
+        ->assertNoNavigation()
+        ->assertSee('Aucune boutique accessible avec ce compte.');
+
+    $test->call('retry')->assertReplacedWith('/dashboard');
+
+    expect(LocalState::current()->fresh()->shop_id)->toBe('shop-1');
+});
+
 it('navigates to the dashboard when the user taps a shop', function () {
     Http::fake(['*/shops' => Http::response(['shops' => [
         ['id' => 'shop-1', 'name' => 'Ma Boutique', 'domain' => 'ma-boutique.com'],

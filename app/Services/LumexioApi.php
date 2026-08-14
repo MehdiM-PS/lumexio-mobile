@@ -10,6 +10,7 @@ use App\Exceptions\Api\UnauthenticatedApiException;
 use App\Exceptions\Api\ValidationApiException;
 use App\Models\LocalState;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 
 class LumexioApi
@@ -48,21 +49,40 @@ class LumexioApi
         }
 
         return match (true) {
-            $response->successful() => $response->json(),
-            $response->status() === 401 => throw new UnauthenticatedApiException('Session expirée.'),
+            $response->successful() => is_array($body = $response->json())
+                ? $body
+                : throw new ServerErrorApiException('Une erreur est survenue. Réessaie plus tard.'),
+            $response->status() === 401 => throw tap(
+                new UnauthenticatedApiException('Session expirée.'),
+                fn () => LocalState::current()->clearToken()
+            ),
             $response->status() === 403 => throw new ProRequiredApiException(
-                $response->json('message') ?? 'Fonctionnalité réservée au plan Pro.'
+                $this->messageOrDefault($response, 'Fonctionnalité réservée au plan Pro.')
             ),
             $response->status() === 422 => throw new ValidationApiException(
-                $response->json('message') ?? 'Erreur de validation.',
+                $this->messageOrDefault($response, 'Erreur de validation.'),
                 $response->json('errors') ?? []
             ),
             $response->status() === 429 => throw new RateLimitedApiException(
-                $response->json('message') ?? 'Trop de requêtes, réessaie dans un instant.'
+                $this->messageOrDefault($response, 'Trop de requêtes, réessaie dans un instant.')
             ),
             default => throw new ServerErrorApiException(
-                $response->json('message') ?? 'Une erreur est survenue. Réessaie plus tard.'
+                $this->messageOrDefault($response, 'Une erreur est survenue. Réessaie plus tard.')
             ),
         };
+    }
+
+    /**
+     * Read the `message` field from an error response body, falling back to
+     * $default when it is missing OR present but not a string (the API
+     * contract expects a string, but a malformed/unexpected body should
+     * degrade gracefully instead of interpolating a non-scalar value into
+     * an exception message).
+     */
+    private function messageOrDefault(Response $response, string $default): string
+    {
+        $message = $response->json('message');
+
+        return is_string($message) ? $message : $default;
     }
 }

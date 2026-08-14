@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\Api\ServerErrorApiException;
 use App\Models\LocalState;
 use App\Services\AuthService;
 use Illuminate\Support\Facades\Http;
@@ -46,3 +47,18 @@ it('reports whether a token is stored', function () {
 
     expect(app(AuthService::class)->hasToken())->toBeTrue();
 });
+
+it('throws ServerErrorApiException when the login response is missing the token', function () {
+    Http::fake(['*/auth/login' => Http::response([
+        'user' => ['id' => 1, 'name' => 'Mehdi', 'email' => 'mehdi@lumexio.test', 'is_subscribed' => true],
+    ], 200)]);
+
+    app(AuthService::class)->login('mehdi@lumexio.test', 'secret', 'Lumexio iOS');
+})->throws(ServerErrorApiException::class, 'Une erreur est survenue. Réessaie plus tard.');
+
+it('throws ServerErrorApiException when the me response is missing the user', function () {
+    LocalState::current()->update(['token' => 'existing-token']);
+    Http::fake(['*/auth/me' => Http::response([], 200)]);
+
+    app(AuthService::class)->me();
+})->throws(ServerErrorApiException::class, 'Une erreur est survenue. Réessaie plus tard.');

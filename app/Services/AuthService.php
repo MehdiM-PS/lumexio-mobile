@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\Api\ServerErrorApiException;
 use App\Models\LocalState;
 
 class AuthService
@@ -16,14 +17,19 @@ class AuthService
             'device_name' => $deviceName,
         ]);
 
-        LocalState::current()->update(['token' => $data['token']]);
+        $token = $data['token'] ?? throw new ServerErrorApiException('Une erreur est survenue. Réessaie plus tard.');
+        $user = $data['user'] ?? throw new ServerErrorApiException('Une erreur est survenue. Réessaie plus tard.');
 
-        return $data['user'];
+        LocalState::current()->update(['token' => $token]);
+
+        return $user;
     }
 
     public function me(): array
     {
-        return $this->api->get('/auth/me')['user'];
+        $data = $this->api->get('/auth/me');
+
+        return $data['user'] ?? throw new ServerErrorApiException('Une erreur est survenue. Réessaie plus tard.');
     }
 
     public function logout(): void

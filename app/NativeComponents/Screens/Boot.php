@@ -14,6 +14,18 @@ class Boot extends NativeComponent
 
     public function mount(): void
     {
+        $this->attemptBoot();
+    }
+
+    public function retry(): void
+    {
+        $this->attemptBoot();
+    }
+
+    private function attemptBoot(): void
+    {
+        $this->resetApiError();
+
         $state = LocalState::current();
 
         if (blank($state->token)) {
@@ -26,6 +38,8 @@ class Boot extends NativeComponent
 
         if ($user === null) {
             // callApi() already replaced to /login on an UnauthenticatedApiException.
+            // Otherwise $lastApiError is now set (network/server failure) and the
+            // view shows a retry action instead of navigating.
             return;
         }
 

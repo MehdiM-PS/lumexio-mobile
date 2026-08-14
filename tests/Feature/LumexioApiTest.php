@@ -102,3 +102,36 @@ it('returns the decoded json body on success', function () {
     expect(app(LumexioApi::class)->get('/dashboard/metrics'))
         ->toBe(['metrics' => ['revenue_today' => 12.5]]);
 });
+
+it('throws ServerErrorApiException on a 200 response with a non-JSON body (e.g. a captive portal page)', function () {
+    Http::fake(['*' => Http::response('<html>captive portal</html>', 200)]);
+
+    app(LumexioApi::class)->get('/dashboard/metrics');
+})->throws(ServerErrorApiException::class, 'Une erreur est survenue. Réessaie plus tard.');
+
+it('throws ServerErrorApiException on a 204 No Content response', function () {
+    Http::fake(['*' => Http::response(null, 204)]);
+
+    app(LumexioApi::class)->get('/dashboard/metrics');
+})->throws(ServerErrorApiException::class, 'Une erreur est survenue. Réessaie plus tard.');
+
+it('falls back to the default message when the error response has a non-string message field', function () {
+    Http::fake(['*' => Http::response(['message' => ['nested' => 'array']], 500)]);
+
+    app(LumexioApi::class)->get('/dashboard/metrics');
+})->throws(ServerErrorApiException::class, 'Une erreur est survenue. Réessaie plus tard.');
+
+it('purges the local token and shop_id when a 401 response is received', function () {
+    LocalState::current()->update(['token' => 'stale-token', 'shop_id' => 'shop-1']);
+    Http::fake(['*' => Http::response(['message' => 'Unauthenticated.'], 401)]);
+
+    try {
+        app(LumexioApi::class)->get('/dashboard/metrics');
+        test()->fail('Expected UnauthenticatedApiException was not thrown.');
+    } catch (UnauthenticatedApiException) {
+        // expected
+    }
+
+    $fresh = LocalState::current()->fresh();
+    expect($fresh->token)->toBeNull()->and($fresh->shop_id)->toBeNull();
+});
