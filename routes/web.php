@@ -6,6 +6,7 @@ use App\NativeComponents\Screens\Dashboard;
 use App\NativeComponents\Screens\ItemDetail;
 use App\NativeComponents\Screens\Login;
 use App\NativeComponents\Screens\SelectShop;
+use App\NativeComponents\Screens\Stock;
 use Illuminate\Support\Facades\Route;
 
 Route::native('/', Boot::class);
@@ -15,4 +16,5 @@ Route::native('/stock/item/{type}/{id}', ItemDetail::class);
 
 Route::nativeGroup(TabsLayout::class, function () {
     Route::native('/dashboard', Dashboard::class);
+    Route::native('/stock', Stock::class);
 });
