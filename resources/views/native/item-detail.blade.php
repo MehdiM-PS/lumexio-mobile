@@ -10,11 +10,17 @@
       publishes its own `native_root_stack` sentinel — a DIFFERENT
       NavigationStack from the tab it was pushed from (Stock, which
       renders via `native_root_tabs` + PerTabNavigationCoordinator).
-    - NavigationCoordinator.swift (the singleton `native_root_stack` uses)
-      seeds `rootUri` from the FIRST uri it ever receives. Since this app
-      never renders a top-level `native_root_stack` before ItemDetail,
-      that first publish IS ItemDetail's own URI → `isRoot: true` on this
-      screen's own stack, even though PHP's router considers it "pushed".
+    - NativeElementBridge.swift explicitly resets the singleton
+      NavigationCoordinator (`isFreshStackMount` → `NavigationCoordinator
+      .shared.reset()`) every time the root sentinel TYPE changes to
+      `native_root_stack` from something else (tabs, WebView, nothing) —
+      not just on the app's first-ever publish. Since this screen is
+      always reached FROM the tabs chrome (Stock), every navigation here
+      is a fresh stack mount: `rootUri` gets cleared, then
+      NavigationCoordinator.swift's `receive()` seeds it from the very
+      next uri it gets — ItemDetail's own. So this screen is `isRoot:
+      true` on ITS stack on every visit, even though PHP's router
+      considers it "pushed".
     - `isRoot: true` + `back` unset (defaults false) => NO chevron at all
       and no way back. Hence: explicit `back` here.
 --}}

@@ -108,11 +108,25 @@ it('wraps the shop list in a refreshable element', function () {
     ]], 200)]);
 
     // Refreshable::resolveProps() registers the bound method as
-    // props.on_refresh (a numeric callback id) — the strongest check the
-    // wire-tree format supports for "is a handler actually bound" short
-    // of decoding the CallbackRegistry.
+    // props.on_refresh (a numeric, content-addressed callback id).
+    // Comparing against callbackIdFor('refresh') — rather than just
+    // isset() — proves it's bound to THIS method specifically.
     Native::test(SelectShop::class)
-        ->assertElement('refreshable', fn (array $n): bool => isset($n['props']['on_refresh']));
+        ->assertElement('refreshable', fn (array $n): bool => ($n['props']['on_refresh'] ?? null) === callbackIdFor('refresh'));
+});
+
+it('keeps the refreshable wired correctly around the error state, with no rows or retry button inside it', function () {
+    // The error state suppresses BOTH the empty-state block (shops-empty +
+    // retry button) and the @foreach — refreshable ends up wrapping empty
+    // content. Confirms the binding survives that, not just the populated
+    // and zero-shops-but-no-error cases covered above.
+    Http::fake(fn () => throw new ConnectionException('Could not connect'));
+
+    Native::test(SelectShop::class)
+        ->assertSee('Connexion indisponible. Vérifie ta connexion et réessaie.')
+        ->assertMissingElement('pressable')
+        ->assertMissingElement('button', fn (array $n): bool => ($n['ref'] ?? null) === 'shops-retry')
+        ->assertElement('refreshable', fn (array $n): bool => ($n['props']['on_refresh'] ?? null) === callbackIdFor('refresh'));
 });
 
 it('refetches shops on pull-to-refresh', function () {

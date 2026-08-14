@@ -198,10 +198,11 @@ it('wraps its content in a refreshable element wired to loadHistory', function (
 
     Native::visit('/stock/item/product/1', data: ['item' => ['type' => 'product', 'id' => 1, 'name' => 'T-shirt', 'reference' => 'TS-1', 'quantity' => 10, 'low_stock_threshold' => 5, 'supplier_lead_time_days' => 7]])
         // Refreshable::resolveProps() registers the bound method as
-        // props.on_refresh (a numeric callback id) — the strongest check
-        // the wire-tree format supports for "is a handler actually bound"
-        // short of decoding the CallbackRegistry.
-        ->assertElement('refreshable', fn (array $n): bool => isset($n['props']['on_refresh']));
+        // props.on_refresh (a numeric, content-addressed callback id).
+        // Comparing against callbackIdFor('loadHistory') — rather than
+        // just isset() — proves it's bound to THIS method specifically;
+        // isset() alone would still pass for a typo like "loadHistry".
+        ->assertElement('refreshable', fn (array $n): bool => ($n['props']['on_refresh'] ?? null) === callbackIdFor('loadHistory'));
 });
 
 it('refetches stock history on pull-to-refresh', function () {

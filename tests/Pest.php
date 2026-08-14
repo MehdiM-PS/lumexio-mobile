@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Native\Mobile\Edge\CallbackRegistry;
 use Tests\TestCase;
 
 /*
@@ -47,4 +48,18 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+/**
+ * The callback id a fresh, unscoped CallbackRegistry would derive for
+ * $expression — content-addressed (pure hash of the expression string), so
+ * it matches whatever id the screen's own (also unscoped) registry produced
+ * when it registered the same event-binding expression (e.g.
+ * `@refresh="loadHistory"`). Lets a test assert a wire-tree element is bound
+ * to the RIGHT method, not just that some callback is bound — an `isset()`
+ * check alone would still pass for a typo like `@refresh="loadHistry"`.
+ */
+function callbackIdFor(string $expression): int
+{
+    return (new CallbackRegistry)->register($expression);
 }
