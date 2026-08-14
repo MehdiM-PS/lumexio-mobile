@@ -135,3 +135,18 @@ it('purges the local token and shop_id when a 401 response is received', functio
     $fresh = LocalState::current()->fresh();
     expect($fresh->token)->toBeNull()->and($fresh->shop_id)->toBeNull();
 });
+
+it('sends a PATCH request and returns the decoded json body on success', function () {
+    Http::fake(['*' => Http::response(['message' => 'Seuil mis à jour'], 200)]);
+
+    $data = app(LumexioApi::class)->patch('/products/1/threshold', ['threshold' => 5]);
+
+    expect($data)->toBe(['message' => 'Seuil mis à jour']);
+    Http::assertSent(fn ($request) => $request->method() === 'PATCH' && $request['threshold'] === 5);
+});
+
+it('throws ValidationApiException on a 422 response from patch()', function () {
+    Http::fake(['*' => Http::response(['message' => 'Erreur de validation.', 'errors' => ['threshold' => ['Le seuil doit être positif.']]], 422)]);
+
+    app(LumexioApi::class)->patch('/products/1/threshold', ['threshold' => -1]);
+})->throws(ValidationApiException::class);

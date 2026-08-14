@@ -31,6 +31,11 @@ class LumexioApi
         return $this->send('post', $endpoint, $body);
     }
 
+    public function patch(string $endpoint, array $body = []): array
+    {
+        return $this->send('patch', $endpoint, $body);
+    }
+
     private function send(string $method, string $endpoint, array $params): array
     {
         $token = LocalState::current()->token;
