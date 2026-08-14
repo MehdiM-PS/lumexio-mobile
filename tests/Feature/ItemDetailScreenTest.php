@@ -13,6 +13,18 @@ function fakeStockHistory(): void
     ], 200)]);
 }
 
+/** Recursively count wire-tree nodes of a given type — no built-in "count" assertion exists on TestableComponent. */
+function countElementsOfType(array $node, string $type): int
+{
+    $count = ($node['type'] ?? null) === $type ? 1 : 0;
+
+    foreach ($node['children'] ?? [] as $child) {
+        $count += countElementsOfType($child, $type);
+    }
+
+    return $count;
+}
+
 it('shows the product passed via navigation data, including edit controls', function () {
     fakeStockHistory();
 
@@ -104,6 +116,42 @@ it('shows a generic error and keeps the prior value when saving the lead time fa
     expect($screen->get('item')['supplier_lead_time_days'])->toBe(7);
     $screen->assertSee('Invalide.');
     $screen->assertSet('leadTimeInput', '7');
+});
+
+it('renders the stock-history chart as a bar per history entry', function () {
+    fakeStockHistory();
+
+    $screen = Native::visit('/stock/item/product/1', data: ['item' => ['type' => 'product', 'id' => 1, 'name' => 'T-shirt', 'reference' => 'TS-1', 'quantity' => 10, 'low_stock_threshold' => 5, 'supplier_lead_time_days' => 7]]);
+
+    $screen->assertElement('canvas')
+        ->assertElement('rect');
+
+    // fakeStockHistory() returns 2 days of history — exactly one <rect> per day.
+    expect(countElementsOfType($screen->tree(), 'rect'))->toBe(2);
+
+    // The API returns newest-first (14/08 then 13/08, per fakeStockHistory()); loadHistory()'s
+    // array_reverse() must turn that into oldest-first (13/08 then 14/08) so the view's
+    // left-to-right @foreach draws a chronological chart.
+    expect($screen->get('historyLabels'))->toBe(['13/08', '14/08']);
+    expect($screen->get('historyQuantities'))->toBe([12, 10]);
+});
+
+it('hides the chart and does not crash when there is no stock history', function () {
+    Http::fake(['*/products/stock-history*' => Http::response(['history' => []], 200)]);
+
+    $screen = Native::visit('/stock/item/product/1', data: ['item' => ['type' => 'product', 'id' => 1, 'name' => 'T-shirt', 'reference' => 'TS-1', 'quantity' => 10, 'low_stock_threshold' => 5, 'supplier_lead_time_days' => 7]]);
+
+    $screen->assertMissingElement('canvas')
+        ->assertMissingElement('rect')
+        ->assertSee('T-shirt');
+
+    expect($screen->get('historyQuantities'))->toBe([]);
+
+    // The view's `@if (count($historyQuantities) > 0)` gate never calls barHeight() in this
+    // state, so it alone doesn't prove barHeight()'s own guard is safe. Call it directly:
+    // `$this->historyQuantities ?: [1]` must keep max() from receiving an empty array (a PHP
+    // ValueError) when historyQuantities is [].
+    expect($screen->instance()->barHeight(5))->toBeInt();
 });
 
 it('is fully accessible', function () {
