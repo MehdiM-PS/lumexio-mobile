@@ -3,6 +3,10 @@
         Choisis une boutique
     </text>
 
+    @if ($lastApiError)
+        <text ref="shops-error" class="text-sm text-theme-destructive">{{ $lastApiError }}</text>
+    @endif
+
     @foreach ($shops as $shop)
         <pressable
             ref="shop-{{ $shop['id'] }}"

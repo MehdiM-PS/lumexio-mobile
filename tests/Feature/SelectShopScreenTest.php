@@ -2,6 +2,7 @@
 
 use App\Models\LocalState;
 use App\NativeComponents\Screens\SelectShop;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 
@@ -24,6 +25,13 @@ it('auto-selects and navigates when there is exactly one shop', function () {
     Native::test(SelectShop::class)->assertReplacedWith('/dashboard');
 
     expect(LocalState::current()->fresh()->shop_id)->toBe('shop-1');
+});
+
+it('shows the API error message when fetching shops fails', function () {
+    Http::fake(fn () => throw new ConnectionException('Could not connect'));
+
+    Native::test(SelectShop::class)
+        ->assertSee('Connexion indisponible. Vérifie ta connexion et réessaie.');
 });
 
 it('navigates to the dashboard when the user taps a shop', function () {
