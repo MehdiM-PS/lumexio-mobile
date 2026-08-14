@@ -24,11 +24,11 @@ it('goes to shop selection when authenticated but no shop is selected', function
     Native::visit('/')->assertReplacedWith('/shops/select');
 });
 
-it('goes straight to the dashboard when authenticated with a shop already selected', function () {
+it('still goes to shop selection when a shop was already selected, to revalidate it', function () {
     LocalState::current()->update(['token' => 'valid-token', 'shop_id' => 'shop-1']);
     Http::fake(['*/auth/me*' => Http::response([
         'user' => ['id' => 1, 'name' => 'Mehdi', 'email' => 'mehdi@lumexio.test', 'is_subscribed' => true],
     ], 200)]);
 
-    Native::visit('/')->assertReplacedWith('/dashboard');
+    Native::visit('/')->assertReplacedWith('/shops/select');
 });

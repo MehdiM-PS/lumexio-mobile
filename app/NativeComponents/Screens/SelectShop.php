@@ -22,6 +22,14 @@ class SelectShop extends NativeComponent
 
         $this->shops = $data['shops'] ?? [];
 
+        $currentShopId = LocalState::current()->shop_id;
+
+        if (filled($currentShopId) && collect($this->shops)->contains('id', $currentShopId)) {
+            $this->select($currentShopId);
+
+            return;
+        }
+
         if (count($this->shops) === 1) {
             $this->select($this->shops[0]['id']);
         }

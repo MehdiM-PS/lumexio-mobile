@@ -29,7 +29,7 @@ class Boot extends NativeComponent
             return;
         }
 
-        $this->replace(blank($state->shop_id) ? '/shops/select' : '/dashboard');
+        $this->replace('/shops/select');
     }
 
     public function render(): View
