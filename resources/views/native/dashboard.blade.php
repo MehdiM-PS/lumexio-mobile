@@ -1,5 +1,17 @@
 <refreshable @refresh="refresh">
     <column fill class="bg-theme-background px-4 py-4 gap-4">
+        @if ($syncStatus === 'failed')
+            <row ref="dashboard-sync-failed" class="w-full items-center gap-2 rounded-lg bg-theme-destructive/15 px-4 py-[10]">
+                <text class="flex-1 text-sm text-theme-destructive">
+                    {{ filled($syncError) ? $syncError : 'La dernière synchronisation a échoué. Les données peuvent être obsolètes.' }}
+                </text>
+            </row>
+        @elseif ($syncStatus === 'syncing')
+            <row ref="dashboard-sync-syncing" class="w-full items-center gap-2 rounded-lg bg-theme-surface-variant px-4 py-[10]">
+                <text class="flex-1 text-sm text-theme-on-surface-variant">Synchronisation en cours…</text>
+            </row>
+        @endif
+
         @if ($lastApiError)
             <row ref="dashboard-error" class="w-full items-center gap-2 rounded-lg bg-theme-destructive/15 px-4 py-[10]">
                 <text class="flex-1 text-sm text-theme-destructive">{{ $lastApiError }}</text>

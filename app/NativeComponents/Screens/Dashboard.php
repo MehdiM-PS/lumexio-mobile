@@ -2,6 +2,7 @@
 
 namespace App\NativeComponents\Screens;
 
+use App\Models\LocalState;
 use App\NativeComponents\Concerns\HandlesApiErrors;
 use App\Services\LumexioApi;
 use Illuminate\View\View;
@@ -23,6 +24,10 @@ class Dashboard extends NativeComponent
 
     public bool $loading = true;
 
+    public ?string $syncStatus = null;
+
+    public ?string $syncError = null;
+
     public function mount(): void
     {
         $this->refresh();
@@ -37,12 +42,21 @@ class Dashboard extends NativeComponent
         $charts = $this->callApi(fn () => app(LumexioApi::class)->get('/dashboard/charts'));
         $orders = $this->callApi(fn () => app(LumexioApi::class)->get('/dashboard/recent-orders', ['limit' => 10]));
         $lowStock = $this->callApi(fn () => app(LumexioApi::class)->get('/dashboard/low-stock', ['limit' => 10]));
+        $shops = $this->callApi(fn () => app(LumexioApi::class)->get('/shops'));
 
         $this->metrics = $metrics['metrics'] ?? [];
         $this->chartLabels = $charts['revenue_margin']['labels'] ?? [];
         $this->chartRevenue = $charts['revenue_margin']['revenue'] ?? [];
         $this->recentOrders = $orders['orders'] ?? [];
         $this->lowStockProducts = $lowStock['products'] ?? [];
+
+        $currentShopId = LocalState::current()->shop_id;
+        $currentShop = filled($currentShopId)
+            ? collect($shops['shops'] ?? [])->firstWhere('id', $currentShopId)
+            : null;
+
+        $this->syncStatus = $currentShop['sync_status'] ?? null;
+        $this->syncError = $currentShop['sync_error'] ?? null;
 
         $this->loading = false;
     }

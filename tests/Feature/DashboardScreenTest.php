@@ -1,10 +1,11 @@
 <?php
 
+use App\Models\LocalState;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 
-function fakeDashboardEndpoints(): void
+function fakeDashboardEndpoints(array $shops = []): void
 {
     Http::fake([
         '*/dashboard/metrics*' => Http::response(['metrics' => [
@@ -28,6 +29,9 @@ function fakeDashboardEndpoints(): void
         '*/dashboard/low-stock*' => Http::response(['products' => [
             ['id' => 1, 'name' => 'T-shirt bleu', 'quantity' => 2, 'low_stock_threshold' => 5],
         ]], 200),
+        '*/shops*' => Http::response(['shops' => $shops ?: [
+            ['id' => 'shop-1', 'name' => 'Ma Boutique', 'sync_status' => 'idle', 'sync_error' => null],
+        ]], 200),
     ]);
 }
 
@@ -50,7 +54,7 @@ it('refetches data on pull-to-refresh', function () {
 
     Native::visit('/dashboard')->call('refresh');
 
-    Http::assertSentCount(8); // 4 endpoints on mount + 4 again on refresh
+    Http::assertSentCount(10); // 5 endpoints on mount + 5 again on refresh
 });
 
 it('is fully accessible', function () {
@@ -85,7 +89,62 @@ it('shows a generic error instead of crashing when the charts endpoint returns a
         '*/dashboard/low-stock*' => Http::response(['products' => [
             ['id' => 1, 'name' => 'T-shirt bleu', 'quantity' => 2, 'low_stock_threshold' => 5],
         ]], 200),
+        '*/shops*' => Http::response(['shops' => []], 200),
     ]);
 
     Native::visit('/dashboard')->assertSee('Server Error');
+});
+
+it('shows the sync error message when the current shop failed to sync', function () {
+    LocalState::current()->update(['shop_id' => 'shop-1']);
+    fakeDashboardEndpoints([
+        ['id' => 'shop-1', 'name' => 'Ma Boutique', 'sync_status' => 'failed', 'sync_error' => 'Failed to fetch customers from module'],
+    ]);
+
+    Native::visit('/dashboard')
+        ->assertSee('Failed to fetch customers from module')
+        ->assertAccessible();
+});
+
+it('shows a generic fallback message when the sync failed without a sync_error', function () {
+    LocalState::current()->update(['shop_id' => 'shop-1']);
+    fakeDashboardEndpoints([
+        ['id' => 'shop-1', 'name' => 'Ma Boutique', 'sync_status' => 'failed', 'sync_error' => null],
+    ]);
+
+    Native::visit('/dashboard')->assertSee('synchronisation a échoué');
+});
+
+it('shows a syncing banner when the current shop is syncing', function () {
+    LocalState::current()->update(['shop_id' => 'shop-1']);
+    fakeDashboardEndpoints([
+        ['id' => 'shop-1', 'name' => 'Ma Boutique', 'sync_status' => 'syncing', 'sync_error' => null],
+    ]);
+
+    Native::visit('/dashboard')
+        ->assertSee('Synchronisation en cours')
+        ->assertAccessible();
+});
+
+it('shows no sync banner when the current shop is idle', function () {
+    LocalState::current()->update(['shop_id' => 'shop-1']);
+    fakeDashboardEndpoints([
+        ['id' => 'shop-1', 'name' => 'Ma Boutique', 'sync_status' => 'idle', 'sync_error' => null],
+    ]);
+
+    Native::visit('/dashboard')
+        ->assertDontSee('synchronisation a échoué')
+        ->assertDontSee('Synchronisation en cours');
+});
+
+it('shows no sync banner when the current shop is not found in the fetched shops list', function () {
+    LocalState::current()->update(['shop_id' => 'shop-missing']);
+    fakeDashboardEndpoints([
+        ['id' => 'shop-1', 'name' => 'Ma Boutique', 'sync_status' => 'failed', 'sync_error' => 'Some error'],
+    ]);
+
+    Native::visit('/dashboard')
+        ->assertDontSee('synchronisation a échoué')
+        ->assertDontSee('Synchronisation en cours')
+        ->assertDontSee('Some error');
 });
