@@ -53,7 +53,7 @@
                 <pressable
                     ref="forecast-product-result-{{ $product['id'] }}"
                     class="w-full rounded-lg bg-theme-surface-variant px-4 py-[8]"
-                    @press="selectProduct({{ $product['id'] }}, '{{ $product['name'] }}')"
+                    @press="selectProduct({{ $product['id'] }})"
                 >
                     <text class="text-sm text-theme-on-surface">{{ $product['name'] }}</text>
                 </pressable>

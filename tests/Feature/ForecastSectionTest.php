@@ -115,20 +115,46 @@ it('selects a product via the real binding, refetches, and shows a clear button'
 
     $screen = Native::test(ForecastSection::class);
     $screen->set('productSearch', 'bleu');
-    $screen->assertElement('pressable', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-product-result-5' && ($n['on_press'] ?? null) === callbackIdFor("selectProduct(5, 'T-shirt bleu')"));
+    $screen->assertElement('pressable', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-product-result-5' && ($n['on_press'] ?? null) === callbackIdFor('selectProduct(5)'));
 
-    $screen->call('selectProduct', 5, 'T-shirt bleu');
+    $screen->call('selectProduct', 5);
 
     Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/forecasts') && ($request['product_id'] ?? null) === 5);
     $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-selected-product' && str_contains($n['props']['text'] ?? '', 'T-shirt bleu'))
         ->assertElement('button', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-clear-product' && ($n['props']['on_press'] ?? null) === callbackIdFor('clearProduct'));
 });
 
+// Regression: `selectProduct()` used to take a second baked string argument
+// (the product name), interpolated raw into `@press="selectProduct(id,
+// 'name')"`. NativeTagPrecompiler::compileAttributeValue() deliberately
+// skips HTML-escaping `@press` attributes, so a name containing an
+// apostrophe (e.g. "L'Oréal") produced a malformed expression;
+// CallbackRegistry::parse() then failed to decode the arguments and fell
+// back to an empty arg list, so NativeComponent::dispatch() called
+// selectProduct() with zero arguments against a two-required-param
+// signature — an uncaught ArgumentCountError (500 crash on tap). The fix
+// drops the baked name and looks it up from $productResults instead (same
+// pattern as SuppliersTab::select()/SupplierOrdersTab::select()). This
+// proves the fix end-to-end: search for, and select, a product whose name
+// contains an apostrophe, and confirm it displays correctly.
+it('selects a product whose name contains an apostrophe without crashing', function () {
+    fakeForecastsEndpoint();
+    Http::fake(['*/products?search=*' => Http::response(['products' => [['id' => 9, 'name' => "L'Oréal", 'reference' => 'LO-001']]], 200)]);
+
+    $screen = Native::test(ForecastSection::class);
+    $screen->set('productSearch', 'oreal');
+    $screen->assertElement('pressable', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-product-result-9' && ($n['on_press'] ?? null) === callbackIdFor('selectProduct(9)'));
+
+    $screen->call('selectProduct', 9);
+
+    $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-selected-product' && ($n['props']['text'] ?? null) === "L'Oréal");
+});
+
 it('clears the selected product via the real binding and returns to the shop-level view', function () {
     fakeForecastsEndpoint();
 
     $screen = Native::test(ForecastSection::class);
-    $screen->call('selectProduct', 5, 'T-shirt bleu');
+    $screen->call('selectProduct', 5);
 
     $screen->call('clearProduct');
 

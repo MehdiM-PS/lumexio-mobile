@@ -64,10 +64,12 @@ class ForecastSection extends NativeComponent
         $this->productResults = $data['products'] ?? [];
     }
 
-    public function selectProduct(int $productId, string $name): void
+    public function selectProduct(int $productId): void
     {
+        $product = collect($this->productResults)->firstWhere('id', $productId);
+
         $this->selectedProductId = $productId;
-        $this->selectedProductName = $name;
+        $this->selectedProductName = $product['name'] ?? null;
         $this->productSearch = '';
         $this->productResults = [];
         $this->refresh();
