@@ -15,7 +15,8 @@ class TabsLayout extends NativeLayout
             ->activeColor(theme('primary'))
             ->add(Tab::link('Dashboard', '/dashboard', icon: 'home'))
             ->add(Tab::link('Stock', '/stock', icon: 'shippingbox'))
-            ->add(Tab::link('Commandes', '/orders', icon: 'bag'));
+            ->add(Tab::link('Commandes', '/orders', icon: 'bag'))
+            ->add(Tab::link('Recommandations', '/recommendations', icon: 'lightbulb'));
     }
 
     public function usesNativeChrome(): bool
