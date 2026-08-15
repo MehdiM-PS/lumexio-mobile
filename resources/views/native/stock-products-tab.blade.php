@@ -1,4 +1,4 @@
-<refreshable @refresh="refresh">
+<refreshable fill @refresh="refresh">
     <column fill class="bg-theme-background gap-3 p-4">
         @if ($lastApiError)
             <row class="w-full items-center gap-2 rounded-lg bg-theme-destructive/15 px-4 py-[10]">
