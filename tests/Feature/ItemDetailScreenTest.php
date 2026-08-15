@@ -264,6 +264,23 @@ it('wires each stock-history bar to selectBar with its own baked-in index', func
             && ($n['on_press'] ?? null) === callbackIdFor('selectBar(1)'));
 });
 
+it('gives each stock-history bar an a11y-label announcing its date and quantity', function () {
+    // assertAccessible() has no audit rule for the `rect` type (verified by
+    // reading TestableComponent::collectA11yViolations()), so it would stay
+    // green even if these labels were missing entirely — this asserts the
+    // resolved `a11y_label` prop directly instead, on both bars, so a
+    // regression that drops or misindexes the label is actually caught.
+    // historyLabels/historyQuantities are oldest-first after loadHistory()'s
+    // array_reverse(): index 0 is 13/08 (qty 12), index 1 is 14/08 (qty 10).
+    fakeStockHistory();
+
+    Native::visit('/stock/item/product/1', data: ['item' => ['type' => 'product', 'id' => 1, 'name' => 'T-shirt', 'reference' => 'TS-1', 'quantity' => 10, 'low_stock_threshold' => 5, 'supplier_lead_time_days' => 7]])
+        ->assertElement('rect', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-history-chart-bar-0'
+            && ($n['props']['a11y_label'] ?? null) === '13/08 — 12 en stock')
+        ->assertElement('rect', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-history-chart-bar-1'
+            && ($n['props']['a11y_label'] ?? null) === '14/08 — 10 en stock');
+});
+
 it('deselects the stock-history bar and hides the tooltip when tapped a second time', function () {
     fakeStockHistory();
 

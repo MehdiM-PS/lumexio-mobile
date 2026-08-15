@@ -409,6 +409,21 @@ it('wires each revenue bar to selectBar with its own baked-in index', function (
             && ($n['on_press'] ?? null) === callbackIdFor('selectBar(1)'));
 });
 
+it('gives each revenue bar an a11y-label announcing its date and value', function () {
+    // assertAccessible() has no audit rule for the `rect` type (verified by
+    // reading TestableComponent::collectA11yViolations()), so it would stay
+    // green even if these labels were missing entirely — this asserts the
+    // resolved `a11y_label` prop directly instead, on both bars, so a
+    // regression that drops or misindexes the label is actually caught.
+    fakeDashboardEndpoints();
+
+    Native::visit('/dashboard')
+        ->assertElement('rect', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-chart-bar-0'
+            && ($n['props']['a11y_label'] ?? null) === '01/08 — 100,00 €')
+        ->assertElement('rect', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-chart-bar-1'
+            && ($n['props']['a11y_label'] ?? null) === '02/08 — 250,00 €');
+});
+
 it('deselects the revenue bar and hides the tooltip when tapped a second time', function () {
     fakeDashboardEndpoints();
 

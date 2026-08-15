@@ -123,7 +123,7 @@
             <canvas class="w-full h-[80]">
                 <row class="w-full h-full items-end justify-between gap-2">
                     @foreach ($chartRevenue as $value)
-                        <rect ref="dashboard-chart-bar-{{ $loop->index }}" class="flex-1 rounded-sm {{ $selectedBarIndex === $loop->index ? 'bg-theme-primary' : 'bg-theme-primary/50' }}" height="{{ $this->barHeight($value) }}" @press="selectBar({{ $loop->index }})" />
+                        <rect ref="dashboard-chart-bar-{{ $loop->index }}" class="flex-1 rounded-sm {{ $selectedBarIndex === $loop->index ? 'bg-theme-primary' : 'bg-theme-primary/50' }}" height="{{ $this->barHeight($value) }}" a11y-label="{{ $chartLabels[$loop->index] ?? '' }} — {{ number_format($value, 2, ',', ' ') }} €" @press="selectBar({{ $loop->index }})" />
                     @endforeach
                 </row>
             </canvas>
