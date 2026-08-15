@@ -58,3 +58,25 @@ it('shows a generic error instead of crashing on failure', function () {
     Native::test(RecommendationsRejectedTab::class)
         ->assertElement('row', fn (array $n): bool => ($n['ref'] ?? null) === 'reco-rejected-error');
 });
+
+it('is fully accessible', function () {
+    fakeRecommendationsRejectedEndpoints(recommendations: [
+        sampleRecommendation(['id' => 1, 'rejected_at' => now()->toIso8601String()]),
+    ]);
+
+    Native::test(RecommendationsRejectedTab::class)->assertAccessible();
+});
+
+// Bug fix precedent (StockAlertsTab/RecommendationsOpenTab/RecommendationsActionedTab):
+// <refreshable> must be the OUTERMOST element wrapping the whole screen, or the
+// list never claims the remaining vertical space and doesn't scroll.
+it('wraps the entire screen in a refreshable element, not just the list', function () {
+    fakeRecommendationsRejectedEndpoints(recommendations: [
+        sampleRecommendation(['id' => 1, 'rejected_at' => now()->toIso8601String()]),
+    ]);
+
+    $screen = Native::test(RecommendationsRejectedTab::class);
+
+    expect($screen->tree()['type'])->toBe('refreshable');
+    $screen->assertElement('button', fn (array $n): bool => ($n['ref'] ?? null) === 'reco-1-unreject');
+});
