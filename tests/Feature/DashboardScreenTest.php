@@ -304,3 +304,23 @@ it('shows an empty state when there are no top products', function () {
     Native::test(Dashboard::class)
         ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-top-products-empty');
 });
+
+it('switches the top-products empty state from today to yesterday when dayScope changes', function () {
+    // Asserted on the empty state's own `ref`, not a plain assertSee('Hier') /
+    // assertSee('aujourd\'hui') — the button-group toggle's own
+    // :options="['Aujourd\'hui', 'Hier']" already renders both literal
+    // strings elsewhere on this screen, so a substring assertion would pass
+    // vacuously even if this text were still hardcoded to "aujourd'hui".
+    // Same trap documented on the hero day label test above.
+    fakeDashboardEndpoints(topProducts: []);
+
+    $screen = Native::test(Dashboard::class);
+
+    $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-top-products-empty'
+        && ($n['props']['text'] ?? null) === "Aucune vente aujourd'hui.");
+
+    $screen->call('setDayScope', 1);
+
+    $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-top-products-empty'
+        && ($n['props']['text'] ?? null) === 'Aucune vente hier.');
+});

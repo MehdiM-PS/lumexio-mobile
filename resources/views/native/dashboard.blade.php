@@ -179,7 +179,7 @@
                     </column>
                 </row>
             @empty
-                <text ref="dashboard-top-products-empty" class="text-sm text-theme-on-surface-variant">Aucune vente aujourd'hui.</text>
+                <text ref="dashboard-top-products-empty" class="text-sm text-theme-on-surface-variant">{{ $dayScope === 1 ? 'Aucune vente hier.' : "Aucune vente aujourd'hui." }}</text>
             @endforelse
         </column>
     </column>
