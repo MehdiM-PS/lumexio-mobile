@@ -1,11 +1,13 @@
 <?php
 
+use App\Models\LocalState;
 use App\NativeComponents\Screens\SupplierForm;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 
 it('creates a new supplier and navigates back', function () {
     Http::fake(['*/suppliers' => Http::response(['supplier' => ['id' => 9, 'name' => 'Nouveau Fournisseur']], 201)]);
+    LocalState::current()->update(['shop_id' => 'shop-7']);
 
     $screen = Native::test(SupplierForm::class);
     $screen->set('name', 'Nouveau Fournisseur');
@@ -14,7 +16,8 @@ it('creates a new supplier and navigates back', function () {
 
     Http::assertSent(fn ($request) => $request->method() === 'POST'
         && str_contains((string) $request->url(), '/suppliers')
-        && ($request['name'] ?? null) === 'Nouveau Fournisseur');
+        && ($request['name'] ?? null) === 'Nouveau Fournisseur'
+        && ($request['shop_id'] ?? null) === 'shop-7');
     $screen->assertWentBack();
 });
 
@@ -34,7 +37,9 @@ it('updates an existing supplier via PATCH and navigates back', function () {
     $screen->set('name', 'Fournisseur Modifié');
     $screen->call('submit');
 
-    Http::assertSent(fn ($request) => $request->method() === 'PATCH' && str_contains((string) $request->url(), '/suppliers/3'));
+    Http::assertSent(fn ($request) => $request->method() === 'PATCH'
+        && str_contains((string) $request->url(), '/suppliers/3')
+        && ! array_key_exists('shop_id', $request->data()));
     $screen->assertWentBack();
 });
 
@@ -50,4 +55,9 @@ it('shows a validation error and does not navigate away on failure', function ()
 
 it('is fully accessible', function () {
     Native::test(SupplierForm::class)->assertAccessible();
+});
+
+it('wires the submit button to the submit() callback', function () {
+    Native::test(SupplierForm::class)
+        ->assertElement('button', fn (array $n): bool => ($n['ref'] ?? null) === 'supplier-submit' && ($n['props']['on_press'] ?? null) === callbackIdFor('submit'));
 });
