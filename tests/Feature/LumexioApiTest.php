@@ -154,9 +154,10 @@ it('throws ValidationApiException on a 422 response from patch()', function () {
 it('sends a DELETE request with the given params', function () {
     Http::fake(['*/suppliers/5' => Http::response(['message' => 'deleted'], 200)]);
 
-    $result = app(LumexioApi::class)->delete('/suppliers/5');
+    $result = app(LumexioApi::class)->delete('/suppliers/5', ['confirm' => true]);
 
     expect($result)->toBe(['message' => 'deleted']);
     Http::assertSent(fn ($request) => $request->method() === 'DELETE'
-        && str_contains((string) $request->url(), '/suppliers/5'));
+        && str_contains((string) $request->url(), '/suppliers/5')
+        && ($request['confirm'] ?? null) === true);
 });

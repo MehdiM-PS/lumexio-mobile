@@ -49,3 +49,9 @@ it('shows the supplier orders tab by default and switches to the directory via a
     $screen->assertSee('Aucun fournisseur trouvé.')
         ->assertDontSee('Aucune commande fournisseur trouvée.');
 });
+
+it('is fully accessible', function () {
+    fakeStockSuppliersTabEndpoints();
+
+    Native::test(StockSuppliersTab::class)->assertAccessible();
+});

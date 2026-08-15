@@ -41,12 +41,29 @@ it('shows the supplier list', function () {
         ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'supplier-1-name' && ($n['props']['text'] ?? null) === 'Fournisseur Textile SA');
 });
 
+// The `native:model.debounce.400ms="search"` directive compiles to
+// `_change="__syncProperty('search')"` (NativeTagPrecompiler::compileNativeModel()),
+// which BaseTextInput::resolveProps() places under props.on_change — confirmed
+// by dumping the compiled tree for this exact node before writing this
+// assertion. callbackIdFor() being content-addressed means this catches a
+// regression to the wrong sync mode/property name, not just "is bound to
+// something".
+it('wires the search input to the real debounced binding', function () {
+    fakeSuppliersEndpoints(suppliers: [sampleSupplier()]);
+
+    Native::test(SuppliersTab::class)
+        ->assertElement('outlined_text_input', fn (array $n): bool => ($n['ref'] ?? null) === 'suppliers-search'
+            && ($n['props']['on_change'] ?? null) === callbackIdFor("__syncProperty('search')"));
+});
+
+// Behavioral counterpart: set() drives the component through the same
+// __syncProperty() path a real debounced keystroke would, which invokes the
+// updatedSearch() hook and triggers refresh() — proving the search term
+// actually reaches the API, not just that the input is bound to something.
 it('re-fetches with the search term', function () {
     fakeSuppliersEndpoints(suppliers: [sampleSupplier()]);
 
-    $screen = Native::test(SuppliersTab::class);
-    $screen->set('search', 'textile');
-    $screen->call('refresh');
+    Native::test(SuppliersTab::class)->set('search', 'textile');
 
     Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/suppliers?') && ($request['search'] ?? null) === 'textile');
 });
@@ -88,4 +105,10 @@ it('wires pull-to-refresh to the refresh method', function () {
 
     Native::test(SuppliersTab::class)
         ->assertElement('refreshable', fn (array $n): bool => ($n['props']['on_refresh'] ?? null) === callbackIdFor('refresh'));
+});
+
+it('is fully accessible', function () {
+    fakeSuppliersEndpoints(suppliers: [sampleSupplier()]);
+
+    Native::test(SuppliersTab::class)->assertAccessible();
 });

@@ -61,3 +61,12 @@ it('wires the submit button to the submit() callback', function () {
     Native::test(SupplierForm::class)
         ->assertElement('button', fn (array $n): bool => ($n['ref'] ?? null) === 'supplier-submit' && ($n['props']['on_press'] ?? null) === callbackIdFor('submit'));
 });
+
+it('shows the create-mode title with no id param, and the edit-mode title with one', function () {
+    Native::test(SupplierForm::class)
+        ->assertNavTitle('Nouveau fournisseur');
+
+    Native::test(SupplierForm::class, params: ['id' => 3], data: ['supplier' => [
+        'id' => 3, 'name' => 'Fournisseur Existant', 'contact_name' => null, 'email' => null, 'phone' => null, 'address' => null, 'notes' => null,
+    ]])->assertNavTitle('Modifier le fournisseur');
+});

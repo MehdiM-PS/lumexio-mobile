@@ -31,6 +31,21 @@ it('shows the products tab by default and switches to alerts', function () {
         ->assertSee('Aucune alerte.');
 });
 
+it('switches to the suppliers tab and mounts the nested StockSuppliersTab', function () {
+    Http::fake([
+        '*/alerts/stock-overview*' => Http::response(['stats' => ['total' => 0, 'low_stock' => 0, 'out_of_stock' => 0], 'valuation' => ['total_value' => 0, 'total_quantity' => 0]], 200),
+        '*/alerts*' => Http::response(['alerts' => [], 'pagination' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 50, 'total' => 0]], 200),
+        '*/products/variants*' => Http::response(['variants' => [], 'pagination' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 50, 'total' => 0]], 200),
+        '*/products*' => Http::response(['products' => [], 'pagination' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 50, 'total' => 0]], 200),
+        '*/supplier-orders*' => Http::response(['orders' => ['data' => [], 'pagination' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 20, 'total' => 0]], 'stats' => ['total' => 0, 'pending' => 0, 'pending_value' => 0.0, 'received_month' => 0]], 200),
+        '*/suppliers*' => Http::response(['suppliers' => ['data' => [], 'pagination' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 20, 'total' => 0]]], 200),
+    ]);
+
+    Native::visit('/stock')
+        ->set('activeTab', 2)
+        ->assertElement('tab_row', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-suppliers-subtabs');
+});
+
 it('navigates to the item detail screen when a product row is selected', function () {
     Http::fake([
         '*/products/variants*' => Http::response(['variants' => [], 'pagination' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 50, 'total' => 0]], 200),

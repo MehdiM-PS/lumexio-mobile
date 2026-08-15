@@ -10,7 +10,7 @@
             <column class="flex-1">
                 <outlined-text-input ref="suppliers-search" native:model.debounce.400ms="search" label="Rechercher" placeholder="Nom, contact ou email" />
             </column>
-            <button ref="suppliers-add" variant="primary" @press="goToCreate">+</button>
+            <button ref="suppliers-add" variant="primary" a11y-label="Ajouter un fournisseur" @press="goToCreate">+</button>
         </row>
 
         <column class="w-full gap-2">

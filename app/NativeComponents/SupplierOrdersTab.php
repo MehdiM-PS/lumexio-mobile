@@ -11,9 +11,9 @@ class SupplierOrdersTab extends NativeComponent
 {
     use HandlesApiErrors;
 
-    public const STATUS_FILTER_ALL_LABEL = 'Tous les statuts';
+    private const STATUS_FILTER_ALL_LABEL = 'Tous les statuts';
 
-    public const STATUS_LABELS = [
+    private const STATUS_LABELS = [
         'brouillon' => 'Brouillon',
         'commandee' => 'Commandée',
         'en_cours' => 'En cours',
