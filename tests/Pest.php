@@ -63,3 +63,24 @@ function callbackIdFor(string $expression): int
 {
     return (new CallbackRegistry)->register($expression);
 }
+
+/**
+ * Recursively find a wire-tree node by its `ref`, or null if not found.
+ * Shared across screen tests (e.g. Dashboard/ItemDetail chart bars) that
+ * need to compare a specific node's resolved style/props rather than just
+ * assert an element of a type exists somewhere in the tree.
+ */
+function findNodeByRef(array $node, string $ref): ?array
+{
+    if (($node['ref'] ?? null) === $ref) {
+        return $node;
+    }
+
+    foreach ($node['children'] ?? [] as $child) {
+        if (($found = findNodeByRef($child, $ref)) !== null) {
+            return $found;
+        }
+    }
+
+    return null;
+}

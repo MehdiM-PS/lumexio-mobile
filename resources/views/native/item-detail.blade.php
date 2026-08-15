@@ -67,10 +67,15 @@
 
     @if (count($historyQuantities) > 0)
         <text class="text-base font-semibold text-theme-on-background">Historique de stock</text>
+        @if ($selectedBarIndex !== null)
+            <text ref="stock-history-chart-tooltip" class="text-sm text-theme-on-surface-variant">
+                {{ $historyLabels[$selectedBarIndex] ?? '' }} — {{ $historyQuantities[$selectedBarIndex] ?? 0 }} en stock
+            </text>
+        @endif
         <canvas class="w-full h-[80]">
             <row class="w-full h-full items-end justify-between gap-2">
                 @foreach ($historyQuantities as $value)
-                    <rect class="flex-1 rounded-sm bg-theme-primary" height="{{ $this->barHeight($value) }}" />
+                    <rect ref="stock-history-chart-bar-{{ $loop->index }}" class="flex-1 rounded-sm {{ $selectedBarIndex === $loop->index ? 'bg-theme-primary' : 'bg-theme-primary/50' }}" height="{{ $this->barHeight($value) }}" @press="selectBar({{ $loop->index }})" />
                 @endforeach
             </row>
         </canvas>

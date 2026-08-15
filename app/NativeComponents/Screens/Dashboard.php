@@ -27,6 +27,8 @@ class Dashboard extends NativeComponent
 
     public array $chartRevenue = [];
 
+    public ?int $selectedBarIndex = null;
+
     public array $recentOrders = [];
 
     public array $lowStockProducts = [];
@@ -65,6 +67,9 @@ class Dashboard extends NativeComponent
     {
         $this->loading = true;
         $this->resetApiError();
+        // Reset before the fetch so a stale index never survives into
+        // freshly-fetched data with a possibly-different length.
+        $this->selectedBarIndex = null;
 
         $metrics = $this->callApi(fn () => app(LumexioApi::class)->get('/dashboard/metrics', ['day' => $this->dayScopeValue()]));
         $charts = $this->callApi(fn () => app(LumexioApi::class)->get('/dashboard/charts'));
@@ -103,6 +108,11 @@ class Dashboard extends NativeComponent
         $max = max($this->chartRevenue ?: [1]);
 
         return $max > 0 ? max(4, (int) round(($value / $max) * 72)) : 4;
+    }
+
+    public function selectBar(int $index): void
+    {
+        $this->selectedBarIndex = $this->selectedBarIndex === $index ? null : $index;
     }
 
     public function render(): View

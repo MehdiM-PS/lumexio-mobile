@@ -225,3 +225,98 @@ it('refetches stock history on pull-to-refresh', function () {
 
     expect($screen->get('historyQuantities'))->toBe([25]);
 });
+
+it('does not show the stock-history chart tooltip before any bar is tapped', function () {
+    fakeStockHistory();
+
+    Native::visit('/stock/item/product/1', data: ['item' => ['type' => 'product', 'id' => 1, 'name' => 'T-shirt', 'reference' => 'TS-1', 'quantity' => 10, 'low_stock_threshold' => 5, 'supplier_lead_time_days' => 7]])
+        ->assertMissingElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-history-chart-tooltip');
+});
+
+it('shows the tapped bar\'s date and quantity in the stock-history chart tooltip', function () {
+    // fakeStockHistory() returns newest-first (14/08 then 13/08); loadHistory()'s
+    // array_reverse() makes index 0 the oldest entry: 13/08, quantity 12.
+    fakeStockHistory();
+
+    $screen = Native::visit('/stock/item/product/1', data: ['item' => ['type' => 'product', 'id' => 1, 'name' => 'T-shirt', 'reference' => 'TS-1', 'quantity' => 10, 'low_stock_threshold' => 5, 'supplier_lead_time_days' => 7]]);
+    $screen->call('selectBar', 0);
+
+    $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-history-chart-tooltip'
+        && ($n['props']['text'] ?? null) === '13/08 — 12 en stock');
+});
+
+it('wires each stock-history bar to selectBar with its own baked-in index', function () {
+    // Element::toArray() registers `@press`'s pressMethod as a top-level
+    // `on_press` field regardless of whether the element type actually
+    // reads it (the same trap documented for Chip's `@press`/on_change
+    // mismatch elsewhere in this suite) — so this only proves something if
+    // the id is compared against the exact per-bar expression, not just
+    // isset(). It also proves the index is genuinely baked per-bar: a view
+    // where every rect carried `@press="selectBar(0)"` would still pass an
+    // isset()-only check but fails this one, since bar-1's id would then
+    // equal callbackIdFor('selectBar(0)') instead of ('selectBar(1)').
+    fakeStockHistory();
+
+    Native::visit('/stock/item/product/1', data: ['item' => ['type' => 'product', 'id' => 1, 'name' => 'T-shirt', 'reference' => 'TS-1', 'quantity' => 10, 'low_stock_threshold' => 5, 'supplier_lead_time_days' => 7]])
+        ->assertElement('rect', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-history-chart-bar-0'
+            && ($n['on_press'] ?? null) === callbackIdFor('selectBar(0)'))
+        ->assertElement('rect', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-history-chart-bar-1'
+            && ($n['on_press'] ?? null) === callbackIdFor('selectBar(1)'));
+});
+
+it('deselects the stock-history bar and hides the tooltip when tapped a second time', function () {
+    fakeStockHistory();
+
+    $screen = Native::visit('/stock/item/product/1', data: ['item' => ['type' => 'product', 'id' => 1, 'name' => 'T-shirt', 'reference' => 'TS-1', 'quantity' => 10, 'low_stock_threshold' => 5, 'supplier_lead_time_days' => 7]]);
+    $screen->call('selectBar', 0);
+
+    // Confirm the tooltip is genuinely showing between the two taps, so this
+    // test fails if selectBar() is broken outright (not only if the toggle-
+    // off branch specifically regresses).
+    $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-history-chart-tooltip');
+
+    $screen->call('selectBar', 0);
+
+    expect($screen->get('selectedBarIndex'))->toBeNull();
+    $screen->assertMissingElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-history-chart-tooltip');
+});
+
+it('gives the selected stock-history bar a different style than an unselected bar', function () {
+    // Before any tap all bars share the same (unselected) style; after
+    // selecting bar 0 only that bar's background should change — proves
+    // the conditional class is actually wired to $selectedBarIndex rather
+    // than always-on or always-off.
+    fakeStockHistory();
+
+    $screen = Native::visit('/stock/item/product/1', data: ['item' => ['type' => 'product', 'id' => 1, 'name' => 'T-shirt', 'reference' => 'TS-1', 'quantity' => 10, 'low_stock_threshold' => 5, 'supplier_lead_time_days' => 7]]);
+    $before = $screen->tree();
+    $bar0Before = findNodeByRef($before, 'stock-history-chart-bar-0');
+    $bar1Before = findNodeByRef($before, 'stock-history-chart-bar-1');
+
+    expect($bar0Before)->not->toBeNull();
+    expect($bar1Before)->not->toBeNull();
+    expect($bar0Before['style']['bg_color'] ?? null)->toBe($bar1Before['style']['bg_color'] ?? null);
+
+    $screen->call('selectBar', 0);
+
+    $after = $screen->tree();
+    $bar0After = findNodeByRef($after, 'stock-history-chart-bar-0');
+    $bar1After = findNodeByRef($after, 'stock-history-chart-bar-1');
+
+    expect($bar0After['style']['bg_color'] ?? null)
+        ->not->toBe($bar1After['style']['bg_color'] ?? null)
+        ->not->toBe($bar0Before['style']['bg_color'] ?? null);
+});
+
+it('resets the selected bar index when stock history is reloaded', function () {
+    fakeStockHistory();
+
+    $screen = Native::visit('/stock/item/product/1', data: ['item' => ['type' => 'product', 'id' => 1, 'name' => 'T-shirt', 'reference' => 'TS-1', 'quantity' => 10, 'low_stock_threshold' => 5, 'supplier_lead_time_days' => 7]]);
+    $screen->call('selectBar', 0);
+
+    expect($screen->get('selectedBarIndex'))->toBe(0);
+
+    $screen->call('loadHistory');
+
+    expect($screen->get('selectedBarIndex'))->toBeNull();
+});

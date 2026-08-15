@@ -115,10 +115,15 @@
         </text>
 
         @if (count($chartRevenue) > 0)
+            @if ($selectedBarIndex !== null)
+                <text ref="dashboard-chart-tooltip" class="text-xs text-theme-on-surface-variant">
+                    {{ $chartLabels[$selectedBarIndex] ?? '' }} — {{ number_format($chartRevenue[$selectedBarIndex] ?? 0, 2, ',', ' ') }} €
+                </text>
+            @endif
             <canvas class="w-full h-[80]">
                 <row class="w-full h-full items-end justify-between gap-2">
                     @foreach ($chartRevenue as $value)
-                        <rect class="flex-1 rounded-sm bg-theme-primary" height="{{ $this->barHeight($value) }}" />
+                        <rect ref="dashboard-chart-bar-{{ $loop->index }}" class="flex-1 rounded-sm {{ $selectedBarIndex === $loop->index ? 'bg-theme-primary' : 'bg-theme-primary/50' }}" height="{{ $this->barHeight($value) }}" @press="selectBar({{ $loop->index }})" />
                     @endforeach
                 </row>
             </canvas>

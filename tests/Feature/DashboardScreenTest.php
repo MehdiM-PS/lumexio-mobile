@@ -370,3 +370,99 @@ it('switches the top-products empty state from today to yesterday when dayScope 
     $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-top-products-empty'
         && ($n['props']['text'] ?? null) === 'Aucune vente hier.');
 });
+
+it('does not show the revenue chart tooltip before any bar is tapped', function () {
+    fakeDashboardEndpoints();
+
+    Native::visit('/dashboard')
+        ->assertMissingElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-chart-tooltip');
+});
+
+it('shows the tapped bar\'s date and revenue in the chart tooltip', function () {
+    // fakeDashboardEndpoints()'s revenue_margin chart: labels ['01/08', '02/08'],
+    // revenue [100.0, 250.0] — tapping index 1 must surface exactly that pair.
+    fakeDashboardEndpoints();
+
+    $screen = Native::visit('/dashboard');
+    $screen->call('selectBar', 1);
+
+    $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-chart-tooltip'
+        && ($n['props']['text'] ?? null) === '02/08 — 250,00 €');
+});
+
+it('wires each revenue bar to selectBar with its own baked-in index', function () {
+    // Element::toArray() registers `@press`'s pressMethod as a top-level
+    // `on_press` field regardless of whether the element type actually
+    // reads it (the same trap documented for Chip's `@press`/on_change
+    // mismatch elsewhere in this suite) — so this only proves something if
+    // the id is compared against the exact per-bar expression, not just
+    // isset(). It also proves the index is genuinely baked per-bar: a view
+    // where every rect carried `@press="selectBar(0)"` would still pass an
+    // isset()-only check but fails this one, since bar-1's id would then
+    // equal callbackIdFor('selectBar(0)') instead of ('selectBar(1)').
+    fakeDashboardEndpoints();
+
+    Native::visit('/dashboard')
+        ->assertElement('rect', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-chart-bar-0'
+            && ($n['on_press'] ?? null) === callbackIdFor('selectBar(0)'))
+        ->assertElement('rect', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-chart-bar-1'
+            && ($n['on_press'] ?? null) === callbackIdFor('selectBar(1)'));
+});
+
+it('deselects the revenue bar and hides the tooltip when tapped a second time', function () {
+    fakeDashboardEndpoints();
+
+    $screen = Native::visit('/dashboard');
+    $screen->call('selectBar', 1);
+
+    // Confirm the tooltip is genuinely showing between the two taps, so this
+    // test fails if selectBar() is broken outright (not only if the toggle-
+    // off branch specifically regresses).
+    $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-chart-tooltip');
+
+    $screen->call('selectBar', 1);
+
+    expect($screen->get('selectedBarIndex'))->toBeNull();
+    $screen->assertMissingElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-chart-tooltip');
+});
+
+it('gives the selected revenue bar a different style than an unselected bar', function () {
+    // Before any tap all bars share the same (unselected) style; after
+    // selecting bar 0 only that bar's background should change — proves
+    // the conditional class is actually wired to $selectedBarIndex rather
+    // than always-on or always-off.
+    fakeDashboardEndpoints();
+
+    $screen = Native::visit('/dashboard');
+    $before = $screen->tree();
+    $bar0Before = findNodeByRef($before, 'dashboard-chart-bar-0');
+    $bar1Before = findNodeByRef($before, 'dashboard-chart-bar-1');
+
+    expect($bar0Before)->not->toBeNull();
+    expect($bar1Before)->not->toBeNull();
+    expect($bar0Before['style']['bg_color'] ?? null)->toBe($bar1Before['style']['bg_color'] ?? null);
+
+    $screen->call('selectBar', 0);
+
+    $after = $screen->tree();
+    $bar0After = findNodeByRef($after, 'dashboard-chart-bar-0');
+    $bar1After = findNodeByRef($after, 'dashboard-chart-bar-1');
+
+    expect($bar0After['style']['bg_color'] ?? null)
+        ->not->toBe($bar1After['style']['bg_color'] ?? null)
+        ->not->toBe($bar0Before['style']['bg_color'] ?? null);
+});
+
+it('resets the selected bar index when the chart data is refreshed', function () {
+    fakeDashboardEndpoints();
+
+    $screen = Native::visit('/dashboard');
+    $screen->call('selectBar', 0);
+
+    expect($screen->get('selectedBarIndex'))->toBe(0);
+
+    fakeDashboardEndpoints();
+    $screen->call('refresh');
+
+    expect($screen->get('selectedBarIndex'))->toBeNull();
+});
