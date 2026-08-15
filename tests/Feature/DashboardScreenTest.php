@@ -2,9 +2,14 @@
 
 use App\Models\LocalState;
 use App\NativeComponents\Screens\Dashboard;
+use Carbon\Carbon;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
+
+afterEach(function () {
+    Carbon::setTestNow();
+});
 
 function fakeDashboardEndpoints(array $shops = [], ?array $widgets = null, ?array $topProducts = null): void
 {
@@ -175,13 +180,32 @@ it('shows no sync banner when the current shop is not found in the fetched shops
         ->assertDontSee('Some error');
 });
 
-it('defaults to today and requests metrics with day=today', function () {
+it('defaults to today and requests metrics with day=today when opened at or after 14:00', function () {
+    // Mirrors web's DashboardPage::DAY_SWITCH_HOUR heuristic: from 14:00
+    // onward, today's figures are complete enough to default to J.
+    Carbon::setTestNow(Carbon::parse('2026-08-14 15:00:00'));
     fakeDashboardEndpoints();
 
-    Native::visit('/dashboard');
+    $screen = Native::visit('/dashboard');
 
+    expect($screen->get('dayScope'))->toBe(0);
     Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/dashboard/metrics')
         && ($request['day'] ?? null) === 'today');
+});
+
+it('defaults to yesterday and requests metrics with day=yesterday when opened before 14:00', function () {
+    // Parity fix: before 14:00 today's figures are too partial to be
+    // meaningful, so mobile now defaults to yesterday (J-1), exactly like
+    // web's DashboardPage::DAY_SWITCH_HOUR heuristic — a merchant opening
+    // the app at 9am must see the same default as on web at the same moment.
+    Carbon::setTestNow(Carbon::parse('2026-08-14 09:00:00'));
+    fakeDashboardEndpoints();
+
+    $screen = Native::visit('/dashboard');
+
+    expect($screen->get('dayScope'))->toBe(1);
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/dashboard/metrics')
+        && ($request['day'] ?? null) === 'yesterday');
 });
 
 it('switches to yesterday and re-fetches metrics with day=yesterday', function () {
@@ -225,6 +249,9 @@ it('switches the hero card day label from Aujourd\'hui to Hier when dayScope cha
     // renders the literal string "Hier" elsewhere on this screen, so a
     // substring assertion would pass vacuously even if the hero label were
     // still hardcoded to "Aujourd'hui".
+    // Frozen to the afternoon so the default day scope is "today" (see the
+    // DAY_SWITCH_HOUR heuristic) — this test is about toggling, not defaults.
+    Carbon::setTestNow(Carbon::parse('2026-08-14 15:00:00'));
     fakeDashboardEndpoints();
 
     $screen = Native::visit('/dashboard');
@@ -312,6 +339,9 @@ it('switches the top-products empty state from today to yesterday when dayScope 
     // strings elsewhere on this screen, so a substring assertion would pass
     // vacuously even if this text were still hardcoded to "aujourd'hui".
     // Same trap documented on the hero day label test above.
+    // Frozen to the afternoon so the default day scope is "today" (see the
+    // DAY_SWITCH_HOUR heuristic) — this test is about toggling, not defaults.
+    Carbon::setTestNow(Carbon::parse('2026-08-14 15:00:00'));
     fakeDashboardEndpoints(topProducts: []);
 
     $screen = Native::test(Dashboard::class);

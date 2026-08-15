@@ -12,6 +12,15 @@ class Dashboard extends NativeComponent
 {
     use HandlesApiErrors;
 
+    /**
+     * Hour of day (matches the web dashboard's `DashboardPage::DAY_SWITCH_HOUR`
+     * convention) at which the default day scope switches from yesterday (J-1)
+     * to today (J). Before this hour today's figures are too partial to be
+     * meaningful, so the app defaults to showing yesterday's complete data —
+     * kept identical to web so a merchant sees the same default on both.
+     */
+    private const int DAY_SWITCH_HOUR = 14;
+
     public array $metrics = [];
 
     public array $chartLabels = [];
@@ -36,6 +45,8 @@ class Dashboard extends NativeComponent
 
     public function mount(): void
     {
+        $this->dayScope = now()->hour < self::DAY_SWITCH_HOUR ? 1 : 0;
+
         $this->refresh();
     }
 
