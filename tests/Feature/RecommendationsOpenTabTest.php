@@ -69,17 +69,32 @@ it('shows the total and high-priority stats', function () {
 // totals were still meaningful. It must fall back to the PRIOR $this->stats
 // value instead, matching StockAlertsTab::refresh()'s
 // `$overview['stats'] ?? $this->stats` precedent.
+//
+// Deliberately does NOT use fakeRecommendationsOpenEndpoints() twice for the
+// two responses: Http::fake() stubs are cumulative, not replaced — calling
+// it a second time with a NEW rule for the same '*/recommendations*'
+// pattern does not override the first rule, and PendingRequest's stub
+// handler resolves to the FIRST matching rule. Two separate
+// fakeRecommendationsOpenEndpoints() calls here would silently keep hitting
+// the original success response on the second refresh() too, making the
+// "failure" branch never actually exercised (same class of bug as Orders'
+// Task 3 double-Http::fake() bug). Http::fakeSequence() registers ONE rule
+// for the URL pattern that serves its pushed responses in order, so the
+// second refresh() genuinely hits the 500.
 it('preserves the last known stats when a refresh fails', function () {
-    fakeRecommendationsOpenEndpoints(recommendations: [sampleRecommendation()], stats: ['total' => 5, 'high_priority' => 2]);
+    Http::fake([
+        '*/recommendations*' => Http::sequence()
+            ->push(['recommendations' => [sampleRecommendation()], 'stats' => ['total' => 5, 'high_priority' => 2], 'available_types' => []], 200)
+            ->push(['message' => 'boom'], 500),
+    ]);
 
     $screen = Native::test(RecommendationsOpenTab::class);
 
     expect($screen->get('stats'))->toBe(['total' => 5, 'high_priority' => 2]);
 
-    fakeRecommendationsOpenEndpoints(error: 'boom');
-
     $screen->call('refresh');
 
+    expect($screen->get('lastApiError'))->not->toBeNull();
     expect($screen->get('stats'))->toBe(['total' => 5, 'high_priority' => 2]);
 });
 
