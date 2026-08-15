@@ -209,6 +209,10 @@ it('defaults to yesterday and requests metrics with day=yesterday when opened be
 });
 
 it('switches to yesterday and re-fetches metrics with day=yesterday', function () {
+    // Frozen to the afternoon so the default day scope is "today" — otherwise
+    // this toggle would be a no-op before 14:00 and the assertions below
+    // would pass vacuously without setDayScope() having changed anything.
+    Carbon::setTestNow(Carbon::parse('2026-08-14 15:00:00'));
     fakeDashboardEndpoints();
 
     $screen = Native::visit('/dashboard');
@@ -233,6 +237,10 @@ it('re-fetches metrics with day=yesterday when the on-device toggle fires a real
     // `fireEvent` primitive, same as a real device tap) instead of calling
     // setDayScope() directly, so it would fail if setDayScope(int $index)
     // ever stopped receiving the tapped index as an argument.
+    // Frozen to the afternoon so the default day scope is "today" — otherwise
+    // this fires before 14:00, the mount default is already "yesterday", and
+    // the guard below would pass without the tap having done anything.
+    Carbon::setTestNow(Carbon::parse('2026-08-14 15:00:00'));
     fakeDashboardEndpoints();
 
     $screen = Native::visit('/dashboard');
@@ -266,6 +274,10 @@ it('switches the hero card day label from Aujourd\'hui to Hier when dayScope cha
 });
 
 it('fetches widgets scoped to the current day and stores them', function () {
+    // Frozen to the afternoon so the default day scope is "today" — otherwise
+    // the mount fetch would already be day=yesterday and the assertion below
+    // would pass without setDayScope() having triggered a re-fetch.
+    Carbon::setTestNow(Carbon::parse('2026-08-14 15:00:00'));
     fakeDashboardEndpoints(widgets: ['day' => 'today', 'date' => today()->toDateString(), 'ca_forecast_percent' => 62.5, 'ca_forecast_predicted' => 800.0, 'avg_cart' => 45.0, 'avg_cart_comparison' => 40.0, 'avg_cart_change' => 12.5, 'new_customers' => 3, 'week_revenue' => 1200.0, 'week_trend' => 8.0]);
 
     $screen = Native::test(Dashboard::class);
@@ -302,6 +314,10 @@ it('renders the 3 new KPI tiles with null-safe avg cart change', function () {
 });
 
 it('fetches and stores the top products for the current day', function () {
+    // Frozen to the afternoon so the default day scope is "today" — otherwise
+    // the mount fetch would already be day=yesterday and the assertion below
+    // would pass without setDayScope() having triggered a re-fetch.
+    Carbon::setTestNow(Carbon::parse('2026-08-14 15:00:00'));
     fakeDashboardEndpoints(topProducts: [
         ['product_id' => 1, 'name' => 'T-shirt', 'image_url' => null, 'category' => 'Vêtements', 'quantity' => 5, 'revenue' => 150.0],
     ]);
