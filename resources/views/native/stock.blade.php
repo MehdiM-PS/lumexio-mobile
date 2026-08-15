@@ -2,6 +2,7 @@
     <tab-row native:model="activeTab" class="w-full">
         <tab label="Produits" />
         <tab label="Alertes" />
+        <tab label="Fournisseurs" />
     </tab-row>
 
     {{-- native: prefix is required here, unlike core elements (tab-row/tab above): the Blade
@@ -11,7 +12,9 @@
     $shortFormTags construction. --}}
     @if ($activeTab === 0)
         <native:stock-products-tab />
-    @else
+    @elseif ($activeTab === 1)
         <native:stock-alerts-tab />
+    @else
+        <native:stock-suppliers-tab />
     @endif
 </column>
