@@ -1,6 +1,7 @@
 <?php
 
 use App\NativeComponents\Layouts\TabsLayout;
+use App\NativeComponents\Screens\Alerts;
 use App\NativeComponents\Screens\Boot;
 use App\NativeComponents\Screens\Dashboard;
 use App\NativeComponents\Screens\ItemDetail;
@@ -23,4 +24,5 @@ Route::nativeGroup(TabsLayout::class, function () {
     Route::native('/stock', Stock::class);
     Route::native('/orders', Orders::class);
     Route::native('/recommendations', Recommendations::class);
+    Route::native('/alerts', Alerts::class);
 });
