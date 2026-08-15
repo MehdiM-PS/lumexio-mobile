@@ -32,6 +32,8 @@ class Dashboard extends NativeComponent
 
     public ?array $widgets = null;
 
+    public array $topProducts = [];
+
     public function mount(): void
     {
         $this->refresh();
@@ -58,6 +60,7 @@ class Dashboard extends NativeComponent
         $orders = $this->callApi(fn () => app(LumexioApi::class)->get('/dashboard/recent-orders', ['limit' => 10]));
         $lowStock = $this->callApi(fn () => app(LumexioApi::class)->get('/dashboard/low-stock', ['limit' => 10]));
         $widgets = $this->callApi(fn () => app(LumexioApi::class)->get('/dashboard/widgets', ['day' => $this->dayScopeValue()]));
+        $topProducts = $this->callApi(fn () => app(LumexioApi::class)->get('/dashboard/top-products', ['day' => $this->dayScopeValue()]));
         $shops = $this->callApi(fn () => app(LumexioApi::class)->get('/shops'));
 
         $this->metrics = $metrics['metrics'] ?? [];
@@ -66,6 +69,7 @@ class Dashboard extends NativeComponent
         $this->recentOrders = $orders['orders'] ?? [];
         $this->lowStockProducts = $lowStock['products'] ?? [];
         $this->widgets = $widgets['widgets'] ?? null;
+        $this->topProducts = $topProducts['products'] ?? [];
 
         $currentShopId = LocalState::current()->shop_id;
         $currentShop = filled($currentShopId)

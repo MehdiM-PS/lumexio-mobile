@@ -156,5 +156,31 @@
                 <text class="text-sm text-theme-on-surface-variant">Aucun produit en stock bas.</text>
             @endforelse
         </column>
+
+        <text class="text-base font-semibold text-theme-on-background">Top 5 produits</text>
+        <column class="w-full gap-2">
+            @forelse ($topProducts as $rank => $product)
+                <row class="w-full items-center gap-3 rounded-lg bg-theme-surface-variant px-4 py-[10]">
+                    <text class="w-[24] text-sm font-semibold text-theme-on-surface-variant">{{ $rank + 1 }}</text>
+                    @if ($product['image_url'])
+                        <image src="{{ $product['image_url'] }}" alt="{{ $product['name'] }}" class="h-[40] w-[40] rounded-md" />
+                    @endif
+                    <column class="flex-1 gap-0">
+                        <text ref="dashboard-top-product-{{ $product['product_id'] }}-name" class="text-sm font-medium text-theme-on-surface">
+                            {{ $product['name'] }}
+                        </text>
+                        @if ($product['category'])
+                            <text class="text-xs text-theme-on-surface-variant">{{ $product['category'] }}</text>
+                        @endif
+                    </column>
+                    <column class="items-end gap-0">
+                        <text class="text-sm font-semibold text-theme-on-surface">{{ number_format($product['revenue'], 2, ',', ' ') }} €</text>
+                        <text class="text-xs text-theme-on-surface-variant">{{ $product['quantity'] }} vendu(s)</text>
+                    </column>
+                </row>
+            @empty
+                <text ref="dashboard-top-products-empty" class="text-sm text-theme-on-surface-variant">Aucune vente aujourd'hui.</text>
+            @endforelse
+        </column>
     </column>
 </refreshable>

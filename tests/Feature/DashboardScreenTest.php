@@ -6,7 +6,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 
-function fakeDashboardEndpoints(array $shops = [], ?array $widgets = null): void
+function fakeDashboardEndpoints(array $shops = [], ?array $widgets = null, ?array $topProducts = null): void
 {
     Http::fake([
         '*/dashboard/metrics*' => Http::response(['metrics' => [
@@ -42,6 +42,13 @@ function fakeDashboardEndpoints(array $shops = [], ?array $widgets = null): void
             'week_revenue' => 1200.0,
             'week_trend' => 8.0,
         ]], 200),
+        '*/dashboard/top-products*' => Http::response([
+            'day' => 'today',
+            'date' => today()->toDateString(),
+            'products' => $topProducts ?? [
+                ['product_id' => 7, 'name' => 'Chaise design', 'image_url' => 'https://example.test/chaise.jpg', 'category' => 'Mobilier', 'quantity' => 4, 'revenue' => 199.99],
+            ],
+        ], 200),
         '*/shops*' => Http::response(['shops' => $shops ?: [
             ['id' => 'shop-1', 'name' => 'Ma Boutique', 'sync_status' => 'idle', 'sync_error' => null],
         ]], 200),
@@ -67,7 +74,7 @@ it('refetches data on pull-to-refresh', function () {
 
     Native::visit('/dashboard')->call('refresh');
 
-    Http::assertSentCount(12); // 6 endpoints on mount + 6 again on refresh
+    Http::assertSentCount(14); // 7 endpoints on mount + 7 again on refresh
 });
 
 it('is fully accessible', function () {
@@ -107,6 +114,7 @@ it('shows a generic error instead of crashing when the charts endpoint returns a
             'ca_forecast_predicted' => 800.0, 'avg_cart' => 45.0, 'avg_cart_comparison' => 40.0,
             'avg_cart_change' => 12.5, 'new_customers' => 3, 'week_revenue' => 1200.0, 'week_trend' => 8.0,
         ]], 200),
+        '*/dashboard/top-products*' => Http::response(['day' => 'today', 'date' => today()->toDateString(), 'products' => []], 200),
         '*/shops*' => Http::response(['shops' => []], 200),
     ]);
 
@@ -264,4 +272,35 @@ it('renders the 3 new KPI tiles with null-safe avg cart change', function () {
     Native::test(Dashboard::class)
         ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-new-customers-value' && ($n['props']['text'] ?? null) === '7')
         ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-week-trend-value' && str_contains((string) ($n['props']['text'] ?? ''), '-12,5'));
+});
+
+it('fetches and stores the top products for the current day', function () {
+    fakeDashboardEndpoints(topProducts: [
+        ['product_id' => 1, 'name' => 'T-shirt', 'image_url' => null, 'category' => 'Vêtements', 'quantity' => 5, 'revenue' => 150.0],
+    ]);
+
+    $screen = Native::test(Dashboard::class);
+
+    expect($screen->get('topProducts'))->toHaveCount(1);
+
+    $screen->call('setDayScope', 1);
+
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/dashboard/top-products')
+        && ($request['day'] ?? null) === 'yesterday');
+});
+
+it('renders a ranked row per top product', function () {
+    fakeDashboardEndpoints(topProducts: [
+        ['product_id' => 1, 'name' => 'T-shirt', 'image_url' => null, 'category' => 'Vêtements', 'quantity' => 5, 'revenue' => 150.0],
+    ]);
+
+    Native::test(Dashboard::class)
+        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-top-product-1-name' && ($n['props']['text'] ?? null) === 'T-shirt');
+});
+
+it('shows an empty state when there are no top products', function () {
+    fakeDashboardEndpoints(topProducts: []);
+
+    Native::test(Dashboard::class)
+        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-top-products-empty');
 });
