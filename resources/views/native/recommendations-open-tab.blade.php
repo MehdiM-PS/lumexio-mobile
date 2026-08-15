@@ -30,7 +30,7 @@
             </text>
             <column class="w-full gap-2">
                 @foreach ($items as $rec)
-                    <column class="w-full gap-2 rounded-lg border-l-4 border-[{{ $rec['priority'] === 'high' ? '#ef4444' : ($rec['priority'] === 'medium' ? '#f59e0b' : '#60a5fa') }}] bg-theme-surface-variant p-4">
+                    <column ref="reco-{{ $rec['id'] }}-card" class="w-full gap-2 rounded-lg border-4 border-[{{ $rec['priority'] === 'high' ? '#ef4444' : ($rec['priority'] === 'medium' ? '#f59e0b' : '#60a5fa') }}] bg-theme-surface-variant p-4">
                         <row class="w-full justify-between">
                             <text class="text-sm font-semibold text-theme-on-surface">{{ $rec['title'] }}</text>
                             @if ($this->isNew($rec['created_at']))

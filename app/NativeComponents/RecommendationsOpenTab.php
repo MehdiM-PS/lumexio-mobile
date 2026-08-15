@@ -32,7 +32,7 @@ class RecommendationsOpenTab extends NativeComponent
         ]));
 
         $this->recommendations = $data['recommendations'] ?? [];
-        $this->stats = $data['stats'] ?? ['total' => 0, 'high_priority' => 0];
+        $this->stats = $data['stats'] ?? $this->stats;
     }
 
     public function setPriorityFilter(string $priority): void

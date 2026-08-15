@@ -62,6 +62,27 @@ it('shows the total and high-priority stats', function () {
         ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'reco-stats-high-priority' && ($n['props']['text'] ?? null) === '2');
 });
 
+// Bug fix: refresh() used to fall back to a hardcoded ['total' => 0,
+// 'high_priority' => 0] whenever the API call failed (`$data['stats'] ??
+// ['total' => 0, ...]`), so a merchant who pull-to-refreshed into a
+// transient 500 saw both stat cards flash to 0 even though the last-known
+// totals were still meaningful. It must fall back to the PRIOR $this->stats
+// value instead, matching StockAlertsTab::refresh()'s
+// `$overview['stats'] ?? $this->stats` precedent.
+it('preserves the last known stats when a refresh fails', function () {
+    fakeRecommendationsOpenEndpoints(recommendations: [sampleRecommendation()], stats: ['total' => 5, 'high_priority' => 2]);
+
+    $screen = Native::test(RecommendationsOpenTab::class);
+
+    expect($screen->get('stats'))->toBe(['total' => 5, 'high_priority' => 2]);
+
+    fakeRecommendationsOpenEndpoints(error: 'boom');
+
+    $screen->call('refresh');
+
+    expect($screen->get('stats'))->toBe(['total' => 5, 'high_priority' => 2]);
+});
+
 it('filters by priority using the real chip binding', function () {
     fakeRecommendationsOpenEndpoints(recommendations: [sampleRecommendation()]);
 
@@ -89,6 +110,47 @@ it('requests the high-priority filter when the "Haute" chip is tapped', function
     Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/recommendations?')
         && ! str_contains((string) $request->url(), '/recommendations/')
         && ($request['priority'] ?? null) === 'high');
+});
+
+// refresh() sends `'priority' => null` when the filter is 'all' (rather than
+// omitting the key from the array outright). $request->data() reflects the
+// raw pre-serialization array Http::get() was called with (so it still shows
+// `priority: null` there) — the thing that actually matters is the request
+// PHP sends over the wire, i.e. the serialized URL, and PHP's
+// http_build_query() drops null-valued keys entirely rather than sending
+// `priority=`. Assert against the URL, not $request->data(), to prove that.
+it('omits the priority query param entirely when the filter is "all"', function () {
+    fakeRecommendationsOpenEndpoints(recommendations: [sampleRecommendation()]);
+
+    Native::test(RecommendationsOpenTab::class);
+
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/recommendations')
+        && ! str_contains((string) $request->url(), '/recommendations/')
+        && ! str_contains((string) $request->url(), 'priority'));
+});
+
+it('gives a medium-priority recommendation its accent border color', function () {
+    fakeRecommendationsOpenEndpoints(recommendations: [
+        sampleRecommendation(['id' => 2, 'priority' => 'medium', 'priority_label' => 'Moyenne']),
+    ]);
+
+    $screen = Native::test(RecommendationsOpenTab::class);
+
+    $card = findNodeByRef($screen->tree(), 'reco-2-card');
+
+    expect($card['style']['border_color'] ?? null)->toBe('#F59E0B');
+});
+
+it('gives a low-priority recommendation its accent border color', function () {
+    fakeRecommendationsOpenEndpoints(recommendations: [
+        sampleRecommendation(['id' => 3, 'priority' => 'low', 'priority_label' => 'Basse']),
+    ]);
+
+    $screen = Native::test(RecommendationsOpenTab::class);
+
+    $card = findNodeByRef($screen->tree(), 'reco-3-card');
+
+    expect($card['style']['border_color'] ?? null)->toBe('#60A5FA');
 });
 
 it('marks a recommendation as done via the real button binding and removes it locally', function () {
