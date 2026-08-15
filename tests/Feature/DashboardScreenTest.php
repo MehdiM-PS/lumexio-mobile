@@ -192,3 +192,22 @@ it('re-fetches metrics with day=yesterday when the on-device toggle fires a real
     Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/dashboard/metrics')
         && ($request['day'] ?? null) === 'yesterday');
 });
+
+it('switches the hero card day label from Aujourd\'hui to Hier when dayScope changes', function () {
+    // Asserted on the label's own `ref`, not a plain assertSee('Hier') — the
+    // button-group toggle's own :options="['Aujourd\'hui', 'Hier']" already
+    // renders the literal string "Hier" elsewhere on this screen, so a
+    // substring assertion would pass vacuously even if the hero label were
+    // still hardcoded to "Aujourd'hui".
+    fakeDashboardEndpoints();
+
+    $screen = Native::visit('/dashboard');
+
+    $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-hero-day-label'
+        && ($n['props']['text'] ?? null) === "Aujourd'hui");
+
+    $screen->call('setDayScope', 1);
+
+    $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-hero-day-label'
+        && ($n['props']['text'] ?? null) === 'Hier');
+});

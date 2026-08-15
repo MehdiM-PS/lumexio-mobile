@@ -29,7 +29,7 @@
 
         <row class="w-full justify-between">
             <column class="gap-1">
-                <text class="text-xs text-theme-on-surface-variant">Aujourd'hui</text>
+                <text ref="dashboard-hero-day-label" class="text-xs text-theme-on-surface-variant">{{ $dayScope === 1 ? 'Hier' : "Aujourd'hui" }}</text>
                 <text class="text-base font-semibold text-theme-on-background">
                     {{ number_format($metrics['revenue_today'] ?? 0, 2, ',', ' ') }} € · {{ $metrics['orders_today'] ?? 0 }} commandes
                 </text>
