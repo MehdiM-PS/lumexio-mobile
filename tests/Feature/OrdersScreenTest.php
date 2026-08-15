@@ -55,9 +55,29 @@ it('shows the order list with reference, customer, and status badge', function (
     $statusNode = findNodeByRef($screen->tree(), 'order-1-status');
     expect($statusNode['props']['color'] ?? null)->toBe('#FFFFFF');
 
-    $badgeNode = findNodeByRef($screen->tree(), 'order-1');
-    $badgeRow = $badgeNode['children'][0]['children'][1];
-    expect($badgeRow['style']['bg_color'] ?? null)->toBe('#10B981');
+    $badgeNode = findNodeByRef($screen->tree(), 'order-1-badge');
+    expect($badgeNode['style']['bg_color'] ?? null)->toBe('#10B981');
+});
+
+// Proves the row is bound to selectOrder(1) via the REAL @press binding
+// (CallbackRegistry::parse()), not just that calling selectOrder(1) by hand
+// works. callbackIdFor() is content-addressed (a pure hash of the
+// expression string), so comparing against it — rather than an isset()
+// check on on_press — would catch both a typo in the baked expression and a
+// regression back to baking the whole order object instead of just its id
+// (the exact mistake the task brief called out and this screen deliberately
+// avoids, per NativeComponents/Screens/Orders.php's selectOrder()).
+it('wires each order row to selectOrder with its own baked-in id', function () {
+    fakeOrdersEndpoints(orders: [
+        sampleOrder(['id' => 1, 'reference' => 'ORD-001']),
+        sampleOrder(['id' => 2, 'reference' => 'ORD-002']),
+    ]);
+
+    Native::test(Orders::class)
+        ->assertElement('pressable', fn (array $n): bool => ($n['ref'] ?? null) === 'order-1'
+            && ($n['on_press'] ?? null) === callbackIdFor('selectOrder(1)'))
+        ->assertElement('pressable', fn (array $n): bool => ($n['ref'] ?? null) === 'order-2'
+            && ($n['on_press'] ?? null) === callbackIdFor('selectOrder(2)'));
 });
 
 it('shows an em dash when the order has no customer', function () {
@@ -111,11 +131,13 @@ it('loads more orders and appends them without losing the first page', function 
     $screen = Native::test(Orders::class);
     expect($screen->get('orders'))->toHaveCount(1);
     expect($screen->get('hasMorePages'))->toBeTrue();
+    $screen->assertElement('button', fn (array $n): bool => ($n['ref'] ?? null) === 'orders-load-more');
 
     $screen->call('loadMore');
 
     expect($screen->get('orders'))->toHaveCount(2);
     expect($screen->get('hasMorePages'))->toBeFalse();
+    $screen->assertMissingElement('button', fn (array $n): bool => ($n['ref'] ?? null) === 'orders-load-more');
 });
 
 it('navigates to the order detail screen when a row is selected, looking up the order by id', function () {

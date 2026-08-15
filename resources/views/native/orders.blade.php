@@ -24,7 +24,7 @@
                         <text ref="order-{{ $order['id'] }}-reference" class="text-base font-semibold text-theme-on-surface">
                             {{ $order['reference'] }}
                         </text>
-                        <row class="items-center rounded-full px-[8] py-[2] bg-[{{ $order['status_color'] }}]">
+                        <row ref="order-{{ $order['id'] }}-badge" class="items-center rounded-full px-[8] py-[2] bg-[{{ $order['status_color'] }}]">
                             <text ref="order-{{ $order['id'] }}-status" class="text-xs font-medium text-[{{ $order['status_text_color'] }}]">
                                 {{ $order['status_label'] }}
                             </text>
