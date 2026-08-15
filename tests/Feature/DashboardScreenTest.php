@@ -148,3 +148,47 @@ it('shows no sync banner when the current shop is not found in the fetched shops
         ->assertDontSee('Synchronisation en cours')
         ->assertDontSee('Some error');
 });
+
+it('defaults to today and requests metrics with day=today', function () {
+    fakeDashboardEndpoints();
+
+    Native::visit('/dashboard');
+
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/dashboard/metrics')
+        && ($request['day'] ?? null) === 'today');
+});
+
+it('switches to yesterday and re-fetches metrics with day=yesterday', function () {
+    fakeDashboardEndpoints();
+
+    $screen = Native::visit('/dashboard');
+    $screen->call('setDayScope', 1);
+
+    expect($screen->get('dayScope'))->toBe(1);
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/dashboard/metrics')
+        && ($request['day'] ?? null) === 'yesterday');
+});
+
+it('shows a two-option day-scope toggle bound to setDayScope', function () {
+    fakeDashboardEndpoints();
+
+    Native::visit('/dashboard')
+        ->assertElement('button_group', fn (array $n): bool => ($n['props']['on_change'] ?? null) === callbackIdFor('setDayScope'));
+});
+
+it('re-fetches metrics with day=yesterday when the on-device toggle fires a real change event', function () {
+    // Regression guard for the @press-on-Chip trap documented in this repo's
+    // git history: a bound on_change id alone doesn't prove the tap works.
+    // This drives the actual NativeComponent::dispatch() path (the harness's
+    // `fireEvent` primitive, same as a real device tap) instead of calling
+    // setDayScope() directly, so it would fail if setDayScope(int $index)
+    // ever stopped receiving the tapped index as an argument.
+    fakeDashboardEndpoints();
+
+    $screen = Native::visit('/dashboard');
+    $screen->fireEvent('dashboard-day-scope', $screen::EVENT_TAB_CHANGE, ['value' => 1]);
+
+    expect($screen->get('dayScope'))->toBe(1);
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/dashboard/metrics')
+        && ($request['day'] ?? null) === 'yesterday');
+});

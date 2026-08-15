@@ -1,5 +1,14 @@
 <refreshable @refresh="refresh">
     <column fill class="bg-theme-background px-4 py-4 gap-4">
+        {{-- native:model comes before @change so its expanded `_change` attr
+        (silent __syncProperty write) is overwritten by @change's `_change`
+        (setDayScope callback) rather than the other way around — PHP array
+        literals resolve duplicate keys last-wins. native:model still drives
+        the read side (:value="$dayScope"); @change carries the write side
+        since setDayScope() has a refresh() side effect, unlike tab-row's
+        bare native:model in stock.blade.php. --}}
+        <button-group ref="dashboard-day-scope" native:model="dayScope" @change="setDayScope" :options="['Aujourd\'hui', 'Hier']" class="w-full" />
+
         @if ($syncStatus === 'failed')
             <row ref="dashboard-sync-failed" class="w-full items-center gap-2 rounded-lg bg-theme-destructive/15 px-4 py-[10]">
                 <text class="flex-1 text-sm text-theme-destructive">

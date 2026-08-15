@@ -28,8 +28,21 @@ class Dashboard extends NativeComponent
 
     public ?string $syncError = null;
 
+    public int $dayScope = 0;
+
     public function mount(): void
     {
+        $this->refresh();
+    }
+
+    public function dayScopeValue(): string
+    {
+        return $this->dayScope === 1 ? 'yesterday' : 'today';
+    }
+
+    public function setDayScope(int $index): void
+    {
+        $this->dayScope = $index;
         $this->refresh();
     }
 
@@ -38,7 +51,7 @@ class Dashboard extends NativeComponent
         $this->loading = true;
         $this->resetApiError();
 
-        $metrics = $this->callApi(fn () => app(LumexioApi::class)->get('/dashboard/metrics'));
+        $metrics = $this->callApi(fn () => app(LumexioApi::class)->get('/dashboard/metrics', ['day' => $this->dayScopeValue()]));
         $charts = $this->callApi(fn () => app(LumexioApi::class)->get('/dashboard/charts'));
         $orders = $this->callApi(fn () => app(LumexioApi::class)->get('/dashboard/recent-orders', ['limit' => 10]));
         $lowStock = $this->callApi(fn () => app(LumexioApi::class)->get('/dashboard/low-stock', ['limit' => 10]));
