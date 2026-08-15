@@ -30,7 +30,7 @@ class StockAlertsTab extends NativeComponent
         $this->stats = $overview['stats'] ?? $this->stats;
 
         $query = $this->unreadOnly !== null ? ['is_read' => ! $this->unreadOnly] : [];
-        $alertsData = $this->callApi(fn () => app(LumexioApi::class)->get('/alerts', array_merge($query, ['per_page' => 50])));
+        $alertsData = $this->callApi(fn () => app(LumexioApi::class)->get('/alerts', array_merge($query, ['type' => 'stock_low', 'per_page' => 50])));
         $this->alerts = $alertsData['alerts'] ?? [];
     }
 

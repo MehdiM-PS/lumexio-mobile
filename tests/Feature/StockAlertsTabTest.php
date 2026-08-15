@@ -50,7 +50,8 @@ it('filters by unread-only status', function () {
     // negation is easy to get backwards silently, so assert the actual
     // query param sent rather than just that a request fired.
     Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/alerts?')
-        && ($request['is_read'] ?? null) === false);
+        && ($request['is_read'] ?? null) === false
+        && ($request['type'] ?? null) === 'stock_low');
 });
 
 it('marks a single alert as read', function () {
@@ -123,7 +124,17 @@ it('requests unread-only alerts when the chip is tapped', function () {
     Native::test(StockAlertsTab::class)->toggle('chip-unread-only', true);
 
     Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/alerts?')
-        && ($request['is_read'] ?? null) === false);
+        && ($request['is_read'] ?? null) === false
+        && ($request['type'] ?? null) === 'stock_low');
+});
+
+it('scopes the alerts fetch to stock_low only', function () {
+    fakeAlertEndpoints(alerts: [stockAlert()]);
+
+    Native::test(StockAlertsTab::class);
+
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/alerts?')
+        && ($request['type'] ?? null) === 'stock_low');
 });
 
 // Bug fix: <refreshable> was nested as one sibling among several inside the
