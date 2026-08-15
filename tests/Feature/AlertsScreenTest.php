@@ -2,6 +2,7 @@
 
 use App\NativeComponents\Screens\Alerts;
 use Illuminate\Support\Facades\Http;
+use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Testing\Native;
 
 function fakeAlertsScreenEndpoints(array $alerts = [], ?array $stats = null, ?string $error = null): void
@@ -172,14 +173,104 @@ it('marks all alerts as read via the real button binding', function () {
     Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/alerts/read-all'));
 });
 
-it('deletes read alerts via the real button binding', function () {
+// A read-all count of requests, not just "was /alerts/read-all sent": the
+// mutation "delete `$this->refresh()` from markAllAsRead()" left every
+// pre-existing test in this file green (the POST itself was still
+// asserted), because none of them checked that a follow-up GET actually
+// happened. Counting recorded /alerts and /alerts/stats requests before vs.
+// after — rather than a bare assertSent(), which the mount request alone
+// would already satisfy — is what a missing refresh() call would break.
+//
+// Mutation-tested by hand: commenting out `$this->refresh();` inside
+// markAllAsRead() turns this test red (counts stay at 1/1); restoring it
+// turns the test green again.
+it('refetches the alerts list and stats after marking all as read', function () {
+    fakeAlertsScreenEndpoints(alerts: [sampleAlert()]);
+
+    $screen = Native::test(Alerts::class);
+
+    $listCount = fn () => Http::recorded(fn ($request) => str_contains((string) $request->url(), '/alerts?')
+        && ! str_contains((string) $request->url(), '/stats'))->count();
+    $statsCount = fn () => Http::recorded(fn ($request) => str_contains((string) $request->url(), '/alerts/stats'))->count();
+
+    expect($listCount())->toBe(1);
+    expect($statsCount())->toBe(1);
+
+    $screen->call('markAllAsRead');
+
+    expect($listCount())->toBe(2);
+    expect($statsCount())->toBe(2);
+});
+
+it('shows the delete-read button bound to the confirmation prompt, not the deletion itself', function () {
     fakeAlertsScreenEndpoints(alerts: [sampleAlert(['is_read' => true])]);
 
     Native::test(Alerts::class)
-        ->assertElement('button', fn (array $n): bool => ($n['ref'] ?? null) === 'alerts-delete-read' && ($n['props']['on_press'] ?? null) === callbackIdFor('deleteRead'))
-        ->call('deleteRead');
+        ->assertElement('button', fn (array $n): bool => ($n['ref'] ?? null) === 'alerts-delete-read'
+            && ($n['props']['on_press'] ?? null) === callbackIdFor('confirmDeleteRead'));
+});
+
+// Finding: deleteRead() is a hard, irreversible delete of every read alert
+// for the shop (web gates the same action behind wire:confirm), so a single
+// mis-tap on the button must never call the API directly. confirmDeleteRead()
+// — the button's real binding, asserted above — must show a native
+// destructive-style confirmation and only invoke deleteRead() from the
+// confirming button's callback.
+it('shows a native confirmation dialog before deleting read alerts, and does not delete on the bare press', function () {
+    fakeAlertsScreenEndpoints(alerts: [sampleAlert(['is_read' => true])]);
+
+    $screen = Native::test(Alerts::class)->call('confirmDeleteRead');
+
+    $screen->assertNativeCalled('Dialog.Alert', fn (array $params): bool => ($params['title'] ?? null) === 'Supprimer les alertes lues'
+        && collect($params['buttons'] ?? [])->contains(fn ($b) => is_array($b) && ($b['label'] ?? null) === 'Supprimer' && ($b['style'] ?? null) === 'destructive'));
+
+    $screen->assertAwaitingNativeEvent(ButtonPressed::class);
+
+    Http::assertNotSent(fn ($request) => str_contains((string) $request->url(), '/alerts/delete-read'));
+});
+
+it('deletes read alerts only after the destructive button is confirmed', function () {
+    fakeAlertsScreenEndpoints(alerts: [sampleAlert(['is_read' => true])]);
+
+    $screen = Native::test(Alerts::class)->call('confirmDeleteRead');
+
+    $screen->emitNative(ButtonPressed::class, ['index' => 1, 'label' => 'Supprimer']);
 
     Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/alerts/delete-read'));
+});
+
+it('does not delete read alerts when the confirmation is cancelled', function () {
+    fakeAlertsScreenEndpoints(alerts: [sampleAlert(['is_read' => true])]);
+
+    $screen = Native::test(Alerts::class)->call('confirmDeleteRead');
+
+    $screen->emitNative(ButtonPressed::class, ['index' => 0, 'label' => 'Annuler']);
+
+    Http::assertNotSent(fn ($request) => str_contains((string) $request->url(), '/alerts/delete-read'));
+});
+
+// Same refetch-coverage gap as markAllAsRead() above, mutation-tested the
+// same way: commenting out `$this->refresh();` inside deleteRead() turns
+// this red (counts stay at 1/1); restoring it turns it green. Calls
+// deleteRead() directly (bypassing the confirmation dialog, which has its
+// own dedicated tests above) since this test is specifically about the
+// deletion action's own post-success refetch, not about the confirm gate.
+it('refetches the alerts list and stats after deleting read alerts', function () {
+    fakeAlertsScreenEndpoints(alerts: [sampleAlert(['is_read' => true])]);
+
+    $screen = Native::test(Alerts::class);
+
+    $listCount = fn () => Http::recorded(fn ($request) => str_contains((string) $request->url(), '/alerts?')
+        && ! str_contains((string) $request->url(), '/stats'))->count();
+    $statsCount = fn () => Http::recorded(fn ($request) => str_contains((string) $request->url(), '/alerts/stats'))->count();
+
+    expect($listCount())->toBe(1);
+    expect($statsCount())->toBe(1);
+
+    $screen->call('deleteRead');
+
+    expect($listCount())->toBe(2);
+    expect($statsCount())->toBe(2);
 });
 
 it('shows an empty state when there are no alerts', function () {

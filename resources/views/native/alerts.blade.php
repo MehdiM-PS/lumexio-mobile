@@ -46,7 +46,7 @@
 
         <row class="w-full gap-2">
             <button ref="alerts-mark-all-read" variant="ghost" size="sm" @press="markAllAsRead">Tout marquer comme lu</button>
-            <button ref="alerts-delete-read" variant="ghost" size="sm" @press="deleteRead">Supprimer les alertes lues</button>
+            <button ref="alerts-delete-read" variant="ghost" size="sm" @press="confirmDeleteRead">Supprimer les alertes lues</button>
         </row>
 
         <column class="w-full gap-2">

@@ -6,6 +6,8 @@ use App\NativeComponents\Concerns\HandlesApiErrors;
 use App\Services\LumexioApi;
 use Illuminate\View\View;
 use Native\Mobile\Edge\NativeComponent;
+use Native\Mobile\Events\Alert\ButtonPressed;
+use Native\Mobile\Facades\Dialog;
 
 class Alerts extends NativeComponent
 {
@@ -128,6 +130,29 @@ class Alerts extends NativeComponent
         if ($result !== null) {
             $this->refresh();
         }
+    }
+
+    /**
+     * Bound to the "Supprimer les alertes lues" button. This is a hard,
+     * irreversible delete of every read alert for the shop (mirrors web's
+     * `wire:confirm`-gated version of the same action), so it must never
+     * fire from a single tap — only deleteRead() itself calls the API, and
+     * only from the destructive button's callback below.
+     */
+    public function confirmDeleteRead(): void
+    {
+        Dialog::alert(
+            'Supprimer les alertes lues',
+            'Cette action est définitive : toutes les alertes lues seront supprimées.',
+            [
+                ['label' => 'Annuler', 'style' => 'cancel'],
+                ['label' => 'Supprimer', 'style' => 'destructive'],
+            ]
+        )->buttonPressed(function (ButtonPressed $event): void {
+            if ($event->label === 'Supprimer') {
+                $this->deleteRead();
+            }
+        });
     }
 
     public function deleteRead(): void
