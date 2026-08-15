@@ -84,3 +84,33 @@ function findNodeByRef(array $node, string $ref): ?array
 
     return null;
 }
+
+/**
+ * Shared AI-recommendation fixture used by RecommendationsOpenTabTest and
+ * RecommendationsActionedTabTest. Lives here (not file-local to either test)
+ * because Pest's `--filter` still loads every Feature test file during suite
+ * collection, but running a single test file directly (no `--filter`) does
+ * NOT load its siblings — a file-local declaration only shared "by accident"
+ * of load order breaks that direct-run path with an undefined-function
+ * error. Same shared-helper convention as callbackIdFor()/findNodeByRef()
+ * above.
+ */
+function sampleRecommendation(array $overrides = []): array
+{
+    return array_merge([
+        'id' => 1,
+        'type' => 'stock_revenue_risk',
+        'type_label' => 'Stock Revenue Risk',
+        'group' => 'alerts',
+        'group_label' => 'Alertes',
+        'priority' => 'high',
+        'priority_label' => 'Haute',
+        'title' => 'Risque de rupture sur produit populaire',
+        'description' => 'Ce produit va manquer de stock avant la prochaine livraison.',
+        'data_fields' => [['label' => 'Produit', 'value' => 'T-shirt bleu']],
+        'is_actioned' => false,
+        'actioned_status' => null,
+        'rejected_at' => null,
+        'created_at' => now()->toIso8601String(),
+    ], $overrides);
+}

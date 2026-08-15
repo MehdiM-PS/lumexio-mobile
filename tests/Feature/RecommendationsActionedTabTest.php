@@ -4,11 +4,10 @@ use App\NativeComponents\RecommendationsActionedTab;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 
-// sampleRecommendation() is declared as an unprefixed global Pest function in
-// RecommendationsOpenTabTest.php (Task 2) and is reused here as-is — Pest
-// loads every test file in the suite regardless of --filter, so redeclaring
-// it here would fatal with "cannot redeclare" and break the whole suite, not
-// just this file.
+// sampleRecommendation() is a shared global Pest function declared in
+// tests/Pest.php (alongside callbackIdFor()/findNodeByRef()) and reused here
+// as-is — declaring a second definition with the same name would fatal with
+// "cannot redeclare" and break the whole suite, not just this file.
 function fakeRecommendationsActionedEndpoints(array $recommendations = [], ?string $error = null): void
 {
     if ($error !== null) {
@@ -46,7 +45,12 @@ it('shows no status badge when actioned_status is null', function () {
         sampleRecommendation(['id' => 1, 'is_actioned' => true, 'actioned_status' => null]),
     ]);
 
+    // Positive assertion first: proves the card itself rendered (not just
+    // that the two badge refs happen to be absent, which would also pass if
+    // the WHOLE card were gated behind actioned_status and failed to render
+    // at all).
     Native::test(RecommendationsActionedTab::class)
+        ->assertElement('button', fn (array $n): bool => ($n['ref'] ?? null) === 'reco-1-reopen')
         ->assertMissingElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'reco-1-status-resolved')
         ->assertMissingElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'reco-1-status-monitoring');
 });

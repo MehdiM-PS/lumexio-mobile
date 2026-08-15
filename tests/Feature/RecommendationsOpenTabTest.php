@@ -23,25 +23,10 @@ function fakeRecommendationsOpenEndpoints(array $recommendations = [], ?array $s
     ]);
 }
 
-function sampleRecommendation(array $overrides = []): array
-{
-    return array_merge([
-        'id' => 1,
-        'type' => 'stock_revenue_risk',
-        'type_label' => 'Stock Revenue Risk',
-        'group' => 'alerts',
-        'group_label' => 'Alertes',
-        'priority' => 'high',
-        'priority_label' => 'Haute',
-        'title' => 'Risque de rupture sur produit populaire',
-        'description' => 'Ce produit va manquer de stock avant la prochaine livraison.',
-        'data_fields' => [['label' => 'Produit', 'value' => 'T-shirt bleu']],
-        'is_actioned' => false,
-        'actioned_status' => null,
-        'rejected_at' => null,
-        'created_at' => now()->toIso8601String(),
-    ], $overrides);
-}
+// sampleRecommendation() is now shared in tests/Pest.php (alongside
+// callbackIdFor()/findNodeByRef()) so both this file and
+// RecommendationsActionedTabTest.php can rely on it even when run directly
+// without --filter.
 
 it('shows recommendations grouped by their group label', function () {
     fakeRecommendationsOpenEndpoints(recommendations: [
