@@ -58,13 +58,13 @@
                                 label="{{ $alert['severity'] === 'critical' ? 'Critique' : ($alert['severity'] === 'warning' ? 'Attention' : 'Info') }}"
                                 variant="{{ $alert['severity'] === 'critical' ? 'destructive' : ($alert['severity'] === 'warning' ? 'accent' : 'primary') }}"
                             />
-                            <text class="text-xs text-theme-on-surface-variant">{{ $alert['type_label'] }}</text>
+                            <text class="text-xs text-theme-on-surface-variant">{{ $alert['type_label'] ?? '' }}</text>
                         </row>
                         <text ref="alert-{{ $alert['id'] }}-title" class="text-sm font-semibold text-theme-on-surface">{{ $alert['title'] }}</text>
                         <text class="text-sm text-theme-on-surface-variant">{{ $alert['message'] }}</text>
                         <text class="text-xs text-theme-on-surface-variant">
                             {{ \Carbon\Carbon::parse($alert['created_at'])->format('d/m/Y H:i') }}
-                            @if ($alert['is_sent'])
+                            @if ($alert['is_sent'] ?? false)
                                 · notifié
                             @endif
                         </text>
