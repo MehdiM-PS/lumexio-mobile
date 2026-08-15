@@ -36,6 +36,18 @@
             </column>
         </row>
 
+        @if ($widgets && $widgets['ca_forecast_percent'] !== null)
+            <column class="w-full gap-1">
+                <progress-bar ref="dashboard-forecast-progress" value="{{ min($widgets['ca_forecast_percent'], 100) / 100 }}" class="w-full" />
+                <row class="w-full justify-between">
+                    <text class="text-xs text-theme-on-surface-variant">{{ $widgets['ca_forecast_percent'] }}% de l'objectif atteint</text>
+                    <text class="text-xs text-theme-on-surface-variant">objectif : {{ number_format($widgets['ca_forecast_predicted'], 0, ',', ' ') }} €</text>
+                </row>
+            </column>
+        @elseif ($widgets)
+            <text ref="dashboard-forecast-unavailable" class="text-xs text-theme-on-surface-variant">Prévision indisponible</text>
+        @endif
+
         <row class="w-full gap-3">
             <column class="flex-1 gap-1 rounded-lg bg-theme-surface-variant p-4">
                 <text class="text-xs text-theme-on-surface-variant">CA période</text>
@@ -62,6 +74,38 @@
                 <text class="text-xs text-theme-on-surface-variant">Clients</text>
                 <text class="text-xl font-bold text-theme-on-surface" content-transition="numeric">
                     {{ $metrics['customers_count'] ?? 0 }}
+                </text>
+            </column>
+        </row>
+
+        <row class="w-full gap-3">
+            <column class="flex-1 gap-1 rounded-lg bg-theme-surface-variant p-4">
+                <text class="text-xs text-theme-on-surface-variant">Panier moyen ({{ $dayScope === 1 ? 'hier' : 'aujourd\'hui' }})</text>
+                <text class="text-xl font-bold text-theme-on-surface" content-transition="numeric">
+                    {{ $widgets ? number_format($widgets['avg_cart'], 2, ',', ' ') : '0,00' }} €
+                </text>
+                @if ($widgets && $widgets['avg_cart_change'] !== null)
+                    <text class="text-xs {{ $widgets['avg_cart_change'] >= 0 ? 'text-theme-primary' : 'text-theme-destructive' }}">
+                        {{ $widgets['avg_cart_change'] >= 0 ? '+' : '' }}{{ number_format($widgets['avg_cart_change'], 1, ',', ' ') }}%
+                    </text>
+                @endif
+            </column>
+            <column class="flex-1 gap-1 rounded-lg bg-theme-surface-variant p-4">
+                <text class="text-xs text-theme-on-surface-variant">Nouveaux clients</text>
+                <text ref="dashboard-new-customers-value" class="text-xl font-bold text-theme-on-surface" content-transition="numeric">
+                    {{ $widgets['new_customers'] ?? 0 }}
+                </text>
+            </column>
+        </row>
+
+        <row class="w-full">
+            <column class="flex-1 gap-1 rounded-lg bg-theme-surface-variant p-4">
+                <text class="text-xs text-theme-on-surface-variant">Tendance semaine</text>
+                <text ref="dashboard-week-trend-value" class="text-xl font-bold {{ ($widgets['week_trend'] ?? 0) >= 0 ? 'text-theme-primary' : 'text-theme-destructive' }}">
+                    {{ $widgets ? (($widgets['week_trend'] >= 0 ? '+' : '').number_format($widgets['week_trend'], 1, ',', ' ').'%') : '—' }}
+                </text>
+                <text class="text-xs text-theme-on-surface-variant">
+                    {{ $widgets ? number_format($widgets['week_revenue'], 0, ',', ' ').' €' : '' }}
                 </text>
             </column>
         </row>

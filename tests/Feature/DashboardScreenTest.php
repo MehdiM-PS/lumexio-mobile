@@ -1,11 +1,12 @@
 <?php
 
 use App\Models\LocalState;
+use App\NativeComponents\Screens\Dashboard;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 
-function fakeDashboardEndpoints(array $shops = []): void
+function fakeDashboardEndpoints(array $shops = [], ?array $widgets = null): void
 {
     Http::fake([
         '*/dashboard/metrics*' => Http::response(['metrics' => [
@@ -28,6 +29,18 @@ function fakeDashboardEndpoints(array $shops = []): void
         ]], 200),
         '*/dashboard/low-stock*' => Http::response(['products' => [
             ['id' => 1, 'name' => 'T-shirt bleu', 'quantity' => 2, 'low_stock_threshold' => 5],
+        ]], 200),
+        '*/dashboard/widgets*' => Http::response(['widgets' => $widgets ?? [
+            'day' => 'today',
+            'date' => today()->toDateString(),
+            'ca_forecast_percent' => 62.5,
+            'ca_forecast_predicted' => 800.0,
+            'avg_cart' => 45.0,
+            'avg_cart_comparison' => 40.0,
+            'avg_cart_change' => 12.5,
+            'new_customers' => 3,
+            'week_revenue' => 1200.0,
+            'week_trend' => 8.0,
         ]], 200),
         '*/shops*' => Http::response(['shops' => $shops ?: [
             ['id' => 'shop-1', 'name' => 'Ma Boutique', 'sync_status' => 'idle', 'sync_error' => null],
@@ -54,7 +67,7 @@ it('refetches data on pull-to-refresh', function () {
 
     Native::visit('/dashboard')->call('refresh');
 
-    Http::assertSentCount(10); // 5 endpoints on mount + 5 again on refresh
+    Http::assertSentCount(12); // 6 endpoints on mount + 6 again on refresh
 });
 
 it('is fully accessible', function () {
@@ -88,6 +101,11 @@ it('shows a generic error instead of crashing when the charts endpoint returns a
         ]], 200),
         '*/dashboard/low-stock*' => Http::response(['products' => [
             ['id' => 1, 'name' => 'T-shirt bleu', 'quantity' => 2, 'low_stock_threshold' => 5],
+        ]], 200),
+        '*/dashboard/widgets*' => Http::response(['widgets' => [
+            'day' => 'today', 'date' => today()->toDateString(), 'ca_forecast_percent' => 62.5,
+            'ca_forecast_predicted' => 800.0, 'avg_cart' => 45.0, 'avg_cart_comparison' => 40.0,
+            'avg_cart_change' => 12.5, 'new_customers' => 3, 'week_revenue' => 1200.0, 'week_trend' => 8.0,
         ]], 200),
         '*/shops*' => Http::response(['shops' => []], 200),
     ]);
@@ -210,4 +228,40 @@ it('switches the hero card day label from Aujourd\'hui to Hier when dayScope cha
 
     $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-hero-day-label'
         && ($n['props']['text'] ?? null) === 'Hier');
+});
+
+it('fetches widgets scoped to the current day and stores them', function () {
+    fakeDashboardEndpoints(widgets: ['day' => 'today', 'date' => today()->toDateString(), 'ca_forecast_percent' => 62.5, 'ca_forecast_predicted' => 800.0, 'avg_cart' => 45.0, 'avg_cart_comparison' => 40.0, 'avg_cart_change' => 12.5, 'new_customers' => 3, 'week_revenue' => 1200.0, 'week_trend' => 8.0]);
+
+    $screen = Native::test(Dashboard::class);
+
+    expect($screen->get('widgets')['ca_forecast_percent'])->toBe(62.5);
+
+    $screen->call('setDayScope', 1);
+
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/dashboard/widgets')
+        && ($request['day'] ?? null) === 'yesterday');
+});
+
+it('renders the forecast progress bar scaled to a 0-1 fraction, clamped at 100 percent', function () {
+    fakeDashboardEndpoints(widgets: ['day' => 'today', 'date' => today()->toDateString(), 'ca_forecast_percent' => 150.0, 'ca_forecast_predicted' => 800.0, 'avg_cart' => 0, 'avg_cart_comparison' => 0, 'avg_cart_change' => null, 'new_customers' => 0, 'week_revenue' => 0, 'week_trend' => 0]);
+
+    Native::test(Dashboard::class)
+        ->assertElement('progress_bar', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-forecast-progress' && ($n['props']['value'] ?? null) === 1.0);
+});
+
+it('shows a fallback label instead of the progress bar when the forecast is unavailable', function () {
+    fakeDashboardEndpoints(widgets: ['day' => 'today', 'date' => today()->toDateString(), 'ca_forecast_percent' => null, 'ca_forecast_predicted' => null, 'avg_cart' => 0, 'avg_cart_comparison' => 0, 'avg_cart_change' => null, 'new_customers' => 0, 'week_revenue' => 0, 'week_trend' => 0]);
+
+    Native::test(Dashboard::class)
+        ->assertMissingElement('progress_bar', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-forecast-progress')
+        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-forecast-unavailable');
+});
+
+it('renders the 3 new KPI tiles with null-safe avg cart change', function () {
+    fakeDashboardEndpoints(widgets: ['day' => 'today', 'date' => today()->toDateString(), 'ca_forecast_percent' => 50.0, 'ca_forecast_predicted' => 1000.0, 'avg_cart' => 45.0, 'avg_cart_comparison' => 0.0, 'avg_cart_change' => null, 'new_customers' => 7, 'week_revenue' => 500.0, 'week_trend' => -12.5]);
+
+    Native::test(Dashboard::class)
+        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-new-customers-value' && ($n['props']['text'] ?? null) === '7')
+        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-week-trend-value' && str_contains((string) ($n['props']['text'] ?? ''), '-12,5'));
 });
