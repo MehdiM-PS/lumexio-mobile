@@ -54,6 +54,16 @@ function fakeDashboardEndpoints(array $shops = [], ?array $widgets = null, ?arra
                 ['product_id' => 7, 'name' => 'Chaise design', 'image_url' => 'https://example.test/chaise.jpg', 'category' => 'Mobilier', 'quantity' => 4, 'revenue' => 199.99],
             ],
         ], 200),
+        '*/forecasts*' => Http::response([
+            'historical' => [
+                ['date' => '2026-08-01', 'revenue' => 100.0],
+                ['date' => '2026-08-02', 'revenue' => 150.0],
+            ],
+            'forecasts' => [
+                ['forecast_date' => '2026-08-15', 'predicted_revenue' => 200.0, 'confidence_score' => 85],
+            ],
+            'summary' => ['total_predicted' => 200.0],
+        ], 200),
         '*/shops*' => Http::response(['shops' => $shops ?: [
             ['id' => 'shop-1', 'name' => 'Ma Boutique', 'sync_status' => 'idle', 'sync_error' => null],
         ]], 200),
@@ -79,7 +89,7 @@ it('refetches data on pull-to-refresh', function () {
 
     Native::visit('/dashboard')->call('refresh');
 
-    Http::assertSentCount(14); // 7 endpoints on mount + 7 again on refresh
+    Http::assertSentCount(15); // 7 dashboard + 1 forecast on mount, 7 dashboard on refresh (forecast doesn't refresh automatically)
 });
 
 it('is fully accessible', function () {
@@ -120,6 +130,11 @@ it('shows a generic error instead of crashing when the charts endpoint returns a
             'avg_cart_change' => 12.5, 'new_customers' => 3, 'week_revenue' => 1200.0, 'week_trend' => 8.0,
         ]], 200),
         '*/dashboard/top-products*' => Http::response(['day' => 'today', 'date' => today()->toDateString(), 'products' => []], 200),
+        '*/forecasts*' => Http::response([
+            'historical' => [],
+            'forecasts' => [],
+            'summary' => [],
+        ], 200),
         '*/shops*' => Http::response(['shops' => []], 200),
     ]);
 
