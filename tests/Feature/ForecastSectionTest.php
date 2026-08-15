@@ -134,9 +134,16 @@ it('selects a product via the real binding, refetches, and shows a clear button'
 // selectProduct() with zero arguments against a two-required-param
 // signature — an uncaught ArgumentCountError (500 crash on tap). The fix
 // drops the baked name and looks it up from $productResults instead (same
-// pattern as SuppliersTab::select()/SupplierOrdersTab::select()). This
-// proves the fix end-to-end: search for, and select, a product whose name
-// contains an apostrophe, and confirm it displays correctly.
+// pattern as SuppliersTab::select()/SupplierOrdersTab::select()). This test
+// calls $screen->call('selectProduct', 9) directly, bypassing blade
+// compilation and CallbackRegistry::parse() — it does NOT trace the fix
+// end-to-end through the compiled `@press` binding. What it proves is
+// structural: selectProduct()'s signature is a single scalar int (no baked
+// name argument), so the compiled `@press="selectProduct({{ $product['id']
+// }})"` binding can never contain a raw string with an unescaped apostrophe
+// in the first place — the vulnerable code path is unreachable by
+// construction, not merely unexercised. The apostrophe-bearing name here
+// only confirms the lookup-by-id still renders it correctly.
 it('selects a product whose name contains an apostrophe without crashing', function () {
     fakeForecastsEndpoint();
     Http::fake(['*/products?search=*' => Http::response(['products' => [['id' => 9, 'name' => "L'Oréal", 'reference' => 'LO-001']]], 200)]);
@@ -158,8 +165,72 @@ it('clears the selected product via the real binding and returns to the shop-lev
 
     $screen->call('clearProduct');
 
+    // forecast-confidence now renders in both the shop-level and
+    // product-selected views (see headerConfidence()), so it no longer
+    // distinguishes the two — assert the clear-product button is gone too,
+    // which only ever renders when a product is selected, to confirm the
+    // shop-level view genuinely re-rendered rather than just the product
+    // header text vanishing.
     $screen->assertMissingElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-selected-product')
-        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-confidence'); // paired positive assertion — confirms the shop-level view genuinely re-rendered, not just that the product header vanished
+        ->assertMissingElement('button', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-clear-product')
+        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-confidence');
+});
+
+it("shows the selected product's confidence in the header immediately after selecting it, before any bar is tapped", function () {
+    // Distinct, non-zero forecast confidence scores (mean = 82) vs. the
+    // shop summary's confidence (0, from fakeForecastsEndpoint's default) —
+    // proves the header reads the product's own forecasts, not the summary.
+    fakeForecastsEndpoint(forecasts: [
+        sampleForecastDay(['confidence_score' => 91]),
+        sampleForecastDay(['confidence_score' => 73]),
+    ]);
+    Http::fake(['*/products?search=*' => Http::response(['products' => [['id' => 5, 'name' => 'T-shirt bleu', 'reference' => 'TS-BLUE']]], 200)]);
+
+    $screen = Native::test(ForecastSection::class);
+    $screen->call('selectProduct', 5);
+
+    $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-confidence' && str_contains($n['props']['text'] ?? '', '82'));
+});
+
+it('slices the chart to the last 14 historical days and first 7 forecast days when more data is available', function () {
+    // 30 historical days (oldest to newest) and 10 forecast days.
+    $historicalDays = collect(range(0, 29))
+        ->map(fn (int $i) => sampleHistoricalDay(['date' => today()->subDays(29 - $i)->format('Y-m-d')]))
+        ->all();
+
+    $forecastDays = collect(range(1, 10))
+        ->map(fn (int $i) => sampleForecastDay(['forecast_date' => today()->addDays($i)->format('Y-m-d')]))
+        ->all();
+
+    // Shuffled so chartSeries()'s sortBy() is actually load-bearing here —
+    // fed in date order, the slice/take would pass even without sorting.
+    shuffle($historicalDays);
+    shuffle($forecastDays);
+
+    fakeForecastsEndpoint(historical: $historicalDays, forecasts: $forecastDays);
+
+    $screen = Native::test(ForecastSection::class);
+    $tree = $screen->tree();
+
+    // chartSeries() slices to the last 14 historical days + first 7 forecast
+    // days = 21 bars total, regardless of how much data the API returned.
+    $barCount = collect(range(0, 40))->filter(fn (int $i) => findNodeByRef($tree, "forecast-bar-{$i}") !== null)->count();
+    expect($barCount)->toBe(21);
+
+    // slice(-14) on the 30 sorted historical days keeps indexes 16..29, so
+    // index 0 of the combined series is historical[30-14] = historical[16]
+    // (the 17th of the 30 days).
+    $expectedFirstDate = today()->subDays(29 - 16)->format('Y-m-d');
+
+    // take(7) on the sorted forecasts keeps the first 7, so index 20 of the
+    // combined series (14 historical + the 7th forecast day) is forecasts[6].
+    $expectedLastDate = today()->addDays(7)->format('Y-m-d');
+
+    $screen->assertElement('rect', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-bar-0'
+            && str_contains($n['props']['a11y_label'] ?? '', $expectedFirstDate))
+        ->assertElement('rect', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-bar-20'
+            && str_contains($n['props']['a11y_label'] ?? '', $expectedLastDate))
+        ->assertMissingElement('rect', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-bar-21');
 });
 
 it('shows a generic error instead of crashing on failure', function () {

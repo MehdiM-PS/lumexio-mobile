@@ -9,8 +9,9 @@
 
     <row class="w-full justify-between items-center">
         <text class="text-lg font-bold text-theme-on-background" font="InstrumentSerif-Regular">Prévisions</text>
-        @if ($selectedProductId === null)
-            <text ref="forecast-confidence" class="text-xs text-theme-on-surface-variant">Confiance : {{ $summary['confidence'] ?? 0 }}%</text>
+        @php $headerConfidence = $this->headerConfidence(); @endphp
+        @if ($headerConfidence !== null)
+            <text ref="forecast-confidence" class="text-xs text-theme-on-surface-variant">Confiance : {{ $headerConfidence }}%</text>
         @endif
     </row>
 

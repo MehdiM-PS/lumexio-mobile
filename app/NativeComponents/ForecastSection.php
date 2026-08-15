@@ -115,6 +115,31 @@ class ForecastSection extends NativeComponent
         return $historical->concat($forecast)->values()->all();
     }
 
+    /**
+     * Confidence percentage shown in the header readout: the shop-level
+     * summary's confidence when no product is selected, otherwise the mean
+     * confidence across the *charted* forecast days (chartSeries()'s
+     * take(7) window, so the header stays consistent with what the bars
+     * actually show) for the selected product. This keeps a confidence
+     * indicator visible by default as soon as a product is selected, rather
+     * than only after tapping a specific forecast bar. Returns null (hide
+     * the readout) only when a product is selected but has no forecast data
+     * yet, to avoid showing a misleading "Confiance : 0%".
+     */
+    public function headerConfidence(): ?int
+    {
+        if ($this->selectedProductId === null) {
+            return (int) ($this->summary['confidence'] ?? 0);
+        }
+
+        $scores = collect($this->chartSeries())
+            ->where('type', 'forecast')
+            ->pluck('confidence')
+            ->filter(fn ($score) => $score !== null);
+
+        return $scores->isEmpty() ? null : (int) round($scores->avg());
+    }
+
     public function barHeight(float $value): int
     {
         $values = array_column($this->chartSeries(), 'revenue');

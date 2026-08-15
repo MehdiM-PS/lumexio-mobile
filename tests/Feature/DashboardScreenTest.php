@@ -62,7 +62,7 @@ function fakeDashboardEndpoints(array $shops = [], ?array $widgets = null, ?arra
             'forecasts' => [
                 ['forecast_date' => '2026-08-15', 'predicted_revenue' => 200.0, 'confidence_score' => 85],
             ],
-            'summary' => ['total_predicted' => 200.0],
+            'summary' => ['forecast_7d' => 1200.0, 'forecast_30d' => 5000.0, 'historical_7d' => 1100.0, 'historical_30d' => 4800.0, 'trend' => 'up', 'confidence' => 82],
         ], 200),
         '*/shops*' => Http::response(['shops' => $shops ?: [
             ['id' => 'shop-1', 'name' => 'Ma Boutique', 'sync_status' => 'idle', 'sync_error' => null],
@@ -81,7 +81,12 @@ it('shows the dashboard tab bar and KPI data', function () {
         ->assertSee('312') // customers_count
         ->assertSee('Jean Dupont')
         ->assertSee('T-shirt bleu')
-        ->assertElement('rect');
+        ->assertElement('rect')
+        // The embedded <native:forecast-section /> reads summary.confidence
+        // from the real GET /forecasts shape (see fakeDashboardEndpoints'
+        // '*/forecasts*' fixture) — asserts real data renders, not the "0%"
+        // that a mismatched fixture shape would silently degrade to.
+        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-confidence' && str_contains($n['props']['text'] ?? '', '82'));
 });
 
 it('refetches data on pull-to-refresh', function () {
