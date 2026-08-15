@@ -36,6 +36,11 @@ class LumexioApi
         return $this->send('patch', $endpoint, $body);
     }
 
+    public function delete(string $endpoint, array $params = []): array
+    {
+        return $this->send('delete', $endpoint, $params);
+    }
+
     private function send(string $method, string $endpoint, array $params): array
     {
         $token = LocalState::current()->token;
