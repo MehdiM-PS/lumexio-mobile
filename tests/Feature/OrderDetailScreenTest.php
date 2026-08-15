@@ -35,7 +35,7 @@ function fakeOrderDetailEndpoint(array $order, ?string $error = null): void
 // have no way out. (Verified via source inspection only — no iOS simulator
 // available in this environment.)
 it('renders an inline top bar with the order reference as the title and a back button, hoisted into native chrome', function () {
-    fakeOrderDetailEndpoint(['id' => 1, 'reference' => 'ORD-001', 'items' => [], 'customer' => null, 'purchase_cost' => 0, 'fixed_fee' => 0, 'margin' => 0, 'margin_rate' => 0]);
+    fakeOrderDetailEndpoint(['id' => 1, 'reference' => 'ORD-001', 'items' => [], 'customer' => null, 'total_paid_tax_excl' => 0, 'purchase_cost' => 0, 'fixed_fee' => 0, 'margin' => 0, 'margin_rate' => 0]);
 
     Native::test(OrderDetail::class, params: ['id' => 1], data: ['order' => ['id' => 1, 'reference' => 'ORD-001']])
         ->assertNavTitle('ORD-001')
@@ -75,6 +75,7 @@ it('hydrates line items and margin after loadDetail resolves', function () {
         'reference' => 'ORD-001',
         'items' => [['id' => 1, 'product_name' => 'T-shirt', 'quantity' => 2, 'unit_price' => 10.0, 'total_price' => 20.0]],
         'customer' => ['id' => 1, 'firstname' => 'Jean', 'lastname' => 'Dupont', 'email' => 'jean@example.com'],
+        'total_paid_tax_excl' => 20.0,
         'purchase_cost' => 6.0,
         'fixed_fee' => 1.0,
         'margin' => 13.0,
@@ -105,7 +106,7 @@ it('shows a generic error instead of crashing on failure', function () {
 // id) rather than just calling loadDetail() directly — an isset() check
 // alone would still pass for a typo like "loadDetial".
 it('wraps its content in a refreshable element wired to loadDetail', function () {
-    fakeOrderDetailEndpoint(['id' => 1, 'reference' => 'ORD-001', 'items' => [], 'customer' => null, 'purchase_cost' => 0, 'fixed_fee' => 0, 'margin' => 0, 'margin_rate' => 0]);
+    fakeOrderDetailEndpoint(['id' => 1, 'reference' => 'ORD-001', 'items' => [], 'customer' => null, 'total_paid_tax_excl' => 0, 'purchase_cost' => 0, 'fixed_fee' => 0, 'margin' => 0, 'margin_rate' => 0]);
 
     Native::test(OrderDetail::class, params: ['id' => 1], data: ['order' => ['id' => 1, 'reference' => 'ORD-001']])
         ->assertElement('refreshable', fn (array $n): bool => ($n['props']['on_refresh'] ?? null) === callbackIdFor('loadDetail'));
@@ -122,6 +123,7 @@ it('shows the status badge, customer, and margin breakdown once hydrated', funct
         'status_text_color' => '#ffffff',
         'items' => [],
         'customer' => ['id' => 1, 'firstname' => 'Jean', 'lastname' => 'Dupont', 'email' => 'jean@example.com'],
+        'total_paid_tax_excl' => 20.0,
         'purchase_cost' => 6.0,
         'fixed_fee' => 1.0,
         'margin' => 13.0,
@@ -158,6 +160,7 @@ it('shows the margin without a percentage when margin_rate is null', function ()
         'reference' => 'ORD-001',
         'items' => [],
         'customer' => null,
+        'total_paid_tax_excl' => 0,
         'purchase_cost' => 0,
         'fixed_fee' => 0,
         'margin' => 0,
@@ -169,10 +172,44 @@ it('shows the margin without a percentage when margin_rate is null', function ()
         ->assertMissingElement('text', fn (array $n): bool => str_contains((string) ($n['props']['text'] ?? ''), '%'));
 });
 
+// Regression test for the HT/TTC margin-percentage mismatch: margin_rate is
+// margin / total_paid_tax_excl (HT), not margin / total_paid (TTC), so the
+// screen must show both figures distinctly and labeled — using refs rather
+// than assertSee(), since two "48,00 €"/"40,00 €"-shaped euro amounts
+// sitting this close together are exactly the kind of substring collision
+// this screen has hit before.
+it('shows Total HT distinctly from Total TTC so it can be verified against the margin percentage', function () {
+    fakeOrderDetailEndpoint([
+        'id' => 1,
+        'reference' => 'ORD-001',
+        'items' => [],
+        'customer' => null,
+        'total_paid' => 48.0,
+        'total_paid_tax_excl' => 40.0,
+        'purchase_cost' => 6.0,
+        'fixed_fee' => 5.0,
+        'margin' => 29.0,
+        'margin_rate' => 72.5,
+    ]);
+
+    $screen = Native::test(OrderDetail::class, params: ['id' => 1], data: ['order' => ['id' => 1, 'reference' => 'ORD-001']]);
+
+    $ttcNode = findNodeByRef($screen->tree(), 'order-detail-total-ttc');
+    expect($ttcNode['props']['text'] ?? null)->toBe('48,00 €');
+
+    $htNode = findNodeByRef($screen->tree(), 'order-detail-total-ht');
+    expect($htNode['props']['text'] ?? null)->toBe('40,00 €');
+
+    // 29,00 / 40,00 = 72,5% — the reader should be able to verify this by
+    // eye with Total HT and Marge sitting adjacent, unlike 29,00 / 48,00
+    // (60,4%) which is what a merchant would naturally try against TTC.
+    $screen->assertElement('text', fn (array $n): bool => str_contains((string) ($n['props']['text'] ?? ''), '29,00 €') && str_contains((string) ($n['props']['text'] ?? ''), '72,5%'));
+});
+
 it('refetches the order detail on pull-to-refresh', function () {
     Http::fakeSequence('*/orders/*')
-        ->push(['order' => ['id' => 1, 'reference' => 'ORD-001', 'items' => [], 'customer' => null, 'purchase_cost' => 0, 'fixed_fee' => 0, 'margin' => 0, 'margin_rate' => 0]])
-        ->push(['order' => ['id' => 1, 'reference' => 'ORD-001', 'items' => [], 'customer' => null, 'purchase_cost' => 2.0, 'fixed_fee' => 1.0, 'margin' => 8.0, 'margin_rate' => 40.0]]);
+        ->push(['order' => ['id' => 1, 'reference' => 'ORD-001', 'items' => [], 'customer' => null, 'total_paid_tax_excl' => 0, 'purchase_cost' => 0, 'fixed_fee' => 0, 'margin' => 0, 'margin_rate' => 0]])
+        ->push(['order' => ['id' => 1, 'reference' => 'ORD-001', 'items' => [], 'customer' => null, 'total_paid_tax_excl' => 11.0, 'purchase_cost' => 2.0, 'fixed_fee' => 1.0, 'margin' => 8.0, 'margin_rate' => 40.0]]);
 
     $screen = Native::test(OrderDetail::class, params: ['id' => 1], data: ['order' => ['id' => 1, 'reference' => 'ORD-001']]);
 
@@ -197,6 +234,7 @@ it('is fully accessible', function () {
         'status_text_color' => '#ffffff',
         'items' => [['id' => 1, 'product_name' => 'T-shirt', 'quantity' => 2, 'unit_price' => 10.0, 'total_price' => 20.0]],
         'customer' => ['id' => 1, 'firstname' => 'Jean', 'lastname' => 'Dupont', 'email' => 'jean@example.com'],
+        'total_paid_tax_excl' => 20.0,
         'purchase_cost' => 6.0,
         'fixed_fee' => 1.0,
         'margin' => 13.0,

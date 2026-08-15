@@ -82,8 +82,8 @@
 
     <text class="text-base font-semibold text-theme-on-background">Total</text>
     <row class="w-full justify-between">
-        <text class="text-sm text-theme-on-surface-variant">Total payé</text>
-        <text class="text-sm font-semibold text-theme-on-surface">
+        <text class="text-sm text-theme-on-surface-variant">Total TTC</text>
+        <text ref="order-detail-total-ttc" class="text-sm font-semibold text-theme-on-surface">
             {{ number_format($order['total_paid'] ?? 0, 2, ',', ' ') }} €
         </text>
     </row>
@@ -97,6 +97,18 @@
         <row class="w-full justify-between">
             <text class="text-sm text-theme-on-surface-variant">Frais fixe</text>
             <text class="text-sm text-theme-on-surface">{{ number_format($order['fixed_fee'], 2, ',', ' ') }} €</text>
+        </row>
+        {{-- Total HT sits directly above the Marge row (rather than up in
+             the Total block, next to TTC) because it — not TTC — is the
+             actual denominator of margin_rate. Keeping the two figures
+             adjacent lets a merchant verify margin / total_ht ≈ margin_rate
+             at a glance, instead of naturally trying margin / TTC and
+             concluding the math is broken. --}}
+        <row class="w-full justify-between">
+            <text class="text-sm text-theme-on-surface-variant">Total HT</text>
+            <text ref="order-detail-total-ht" class="text-sm font-semibold text-theme-on-surface">
+                {{ number_format($order['total_paid_tax_excl'] ?? 0, 2, ',', ' ') }} €
+            </text>
         </row>
         <row class="w-full justify-between">
             <text class="text-sm text-theme-on-surface-variant">Marge</text>

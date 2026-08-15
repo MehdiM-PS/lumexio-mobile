@@ -93,6 +93,29 @@ it('shows an empty state when there are no orders', function () {
         ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'orders-empty');
 });
 
+// Every list fetch is silently scoped to the last 30 days (start_date), so a
+// flat "not found" empty state reads as "this order doesn't exist" rather
+// than "search your date range" — especially when searching for an order
+// outside the window. The empty state must name the window so it's obvious
+// a date filter, not a missing order, is in play.
+it('mentions the 30-day search window in the empty state', function () {
+    fakeOrdersEndpoints(orders: []);
+
+    $screen = Native::test(Orders::class);
+
+    $emptyNode = findNodeByRef($screen->tree(), 'orders-empty');
+    expect($emptyNode['props']['text'] ?? null)->toContain('30 derniers jours');
+});
+
+it('scopes every fetch to the fixed 30-day window via start_date', function () {
+    fakeOrdersEndpoints(orders: []);
+
+    Native::test(Orders::class);
+
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/orders?')
+        && ($request['start_date'] ?? null) === now()->subDays(30)->toDateString());
+});
+
 it('shows a generic error instead of crashing on failure', function () {
     fakeOrdersEndpoints(error: 'boom');
 

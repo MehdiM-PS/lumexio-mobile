@@ -11,6 +11,12 @@ class Orders extends NativeComponent
 {
     use HandlesApiErrors;
 
+    /**
+     * Every fetch (initial load, search, load-more) is scoped to this many
+     * trailing days via the `start_date` param — see windowStartDate().
+     */
+    private const SEARCH_WINDOW_DAYS = 30;
+
     public string $search = '';
 
     public array $orders = [];
@@ -31,7 +37,7 @@ class Orders extends NativeComponent
 
         $data = $this->callApi(fn () => app(LumexioApi::class)->get('/orders', [
             'search' => $this->search ?: null,
-            'start_date' => now()->subDays(30)->toDateString(),
+            'start_date' => $this->windowStartDate(),
             'page' => 1,
         ]));
 
@@ -45,7 +51,7 @@ class Orders extends NativeComponent
 
         $data = $this->callApi(fn () => app(LumexioApi::class)->get('/orders', [
             'search' => $this->search ?: null,
-            'start_date' => now()->subDays(30)->toDateString(),
+            'start_date' => $this->windowStartDate(),
             'page' => $this->currentPage + 1,
         ]));
 
@@ -54,6 +60,21 @@ class Orders extends NativeComponent
             $this->currentPage = $data['pagination']['current_page'] ?? $this->currentPage + 1;
             $this->hasMorePages = $this->currentPage < ($data['pagination']['last_page'] ?? $this->currentPage);
         }
+    }
+
+    /**
+     * Human-readable label for the fixed search window, shown in the
+     * empty state so a merchant understands why an older order might not
+     * appear rather than reading it as "not found" or "app is broken".
+     */
+    public function windowLabel(): string
+    {
+        return self::SEARCH_WINDOW_DAYS.' derniers jours';
+    }
+
+    private function windowStartDate(): string
+    {
+        return now()->subDays(self::SEARCH_WINDOW_DAYS)->toDateString();
     }
 
     public function updatedSearch(): void

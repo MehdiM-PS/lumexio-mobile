@@ -44,7 +44,9 @@
                 </pressable>
             @empty
                 @if (! $lastApiError)
-                    <text ref="orders-empty" class="text-sm text-theme-on-surface-variant">Aucune commande trouvée.</text>
+                    <text ref="orders-empty" class="text-sm text-theme-on-surface-variant">
+                        Aucune commande trouvée sur les {{ $this->windowLabel() }}.
+                    </text>
                 @endif
             @endforelse
 
