@@ -97,6 +97,7 @@ class Dashboard extends NativeComponent
 
         $this->syncStatus = $currentShop['sync_status'] ?? null;
         $this->syncError = $currentShop['sync_error'] ?? null;
+        LocalState::current()->update(['active_shop_name' => $currentShop['name'] ?? LocalState::current()->active_shop_name]);
 
         $this->loading = false;
     }

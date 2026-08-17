@@ -650,3 +650,14 @@ it('navigates to stock and orders from the account sheet', function () {
     $screen->call('goOrders');
     $screen->assertNavigatedTo('/orders');
 });
+
+it('caches the active shop name in LocalState on refresh', function () {
+    LocalState::current()->update(['shop_id' => 'shop-1']);
+    fakeDashboardEndpoints(shops: [
+        ['id' => 'shop-1', 'name' => 'Boutique Principale', 'sync_status' => 'idle', 'sync_error' => null],
+    ]);
+
+    Native::test(Dashboard::class);
+
+    expect(LocalState::current()->fresh()->active_shop_name)->toBe('Boutique Principale');
+});

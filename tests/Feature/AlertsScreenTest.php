@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\LocalState;
 use App\NativeComponents\Screens\Alerts;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Events\Alert\ButtonPressed;
@@ -308,4 +309,12 @@ it('is fully accessible', function () {
     fakeAlertsScreenEndpoints(alerts: [sampleAlert()]);
 
     Native::test(Alerts::class)->assertAccessible();
+});
+
+it('caches the unread alert count in LocalState on refresh', function () {
+    fakeAlertsScreenEndpoints(stats: ['total' => 10, 'unread' => 4, 'critical_unread' => 1, 'today' => 2]);
+
+    Native::test(Alerts::class);
+
+    expect(LocalState::current()->fresh()->unread_alert_count)->toBe(4);
 });

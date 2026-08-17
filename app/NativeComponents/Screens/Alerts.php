@@ -2,6 +2,7 @@
 
 namespace App\NativeComponents\Screens;
 
+use App\Models\LocalState;
 use App\NativeComponents\Concerns\HandlesApiErrors;
 use App\Services\LumexioApi;
 use Illuminate\View\View;
@@ -65,6 +66,7 @@ class Alerts extends NativeComponent
 
         $statsData = $this->callApi(fn () => app(LumexioApi::class)->get('/alerts/stats'));
         $this->stats = $statsData['stats'] ?? $this->stats;
+        LocalState::current()->update(['unread_alert_count' => $this->stats['unread'] ?? 0]);
     }
 
     public function setSeverityFilter(?string $severity): void
