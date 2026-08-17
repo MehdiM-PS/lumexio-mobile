@@ -36,3 +36,33 @@ it('clears both token and shop on clearToken', function () {
     expect($fresh->token)->toBeNull()
         ->and($fresh->shop_id)->toBeNull();
 });
+
+it('stores a cached active shop name for the shared header', function () {
+    LocalState::current()->update(['active_shop_name' => 'Boutique Principale']);
+
+    expect(LocalState::current()->fresh()->active_shop_name)->toBe('Boutique Principale');
+});
+
+it('defaults unread_alert_count to zero and stores a cached badge count', function () {
+    expect(LocalState::current()->unread_alert_count)->toBe(0);
+
+    LocalState::current()->update(['unread_alert_count' => 4]);
+
+    expect(LocalState::current()->fresh()->unread_alert_count)->toBe(4);
+});
+
+it('clears the cached header fields on logout, not just token and shop', function () {
+    LocalState::current()->update([
+        'token' => 'abc',
+        'shop_id' => 'shop-uuid-123',
+        'active_shop_name' => 'Boutique Principale',
+        'unread_alert_count' => 4,
+    ]);
+
+    LocalState::current()->clearToken();
+
+    $fresh = LocalState::current()->fresh();
+
+    expect($fresh->active_shop_name)->toBeNull()
+        ->and($fresh->unread_alert_count)->toBe(0);
+});
