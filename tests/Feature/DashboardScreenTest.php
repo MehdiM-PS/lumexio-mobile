@@ -11,7 +11,7 @@ afterEach(function () {
     Carbon::setTestNow();
 });
 
-function fakeDashboardEndpoints(array $shops = [], ?array $widgets = null, ?array $topProducts = null, ?array $user = null): void
+function fakeDashboardEndpoints(array $shops = [], ?array $widgets = null, ?array $user = null, ?array $summary = null, ?array $stockStats = null, ?array $segments = null, ?array $alerts = null): void
 {
     Http::fake([
         '*/auth/me*' => Http::response(['user' => $user ?? ['name' => 'Test User', 'email' => 'test@example.test']], 200),
@@ -25,22 +25,11 @@ function fakeDashboardEndpoints(array $shops = [], ?array $widgets = null, ?arra
             'low_stock_count' => 6,
             'customers_count' => 312,
         ]], 200),
-        '*/dashboard/charts*' => Http::response([
-            'revenue_margin' => ['labels' => ['01/08', '02/08'], 'revenue' => [100.0, 250.0], 'margin' => [40.0, 90.0]],
-            'stock' => ['labels' => ['01/08', '02/08'], 'quantity' => [500, 480], 'value' => [12000.0, 11500.0]],
-        ], 200),
-        '*/dashboard/recent-orders*' => Http::response(['orders' => [
-            ['id' => 1, 'reference' => 'ORD001', 'total_paid' => 45.9, 'order_date' => '2026-08-13T10:00:00Z',
-                'customer' => ['firstname' => 'Jean', 'lastname' => 'Dupont']],
-        ]], 200),
-        '*/dashboard/low-stock*' => Http::response(['products' => [
-            ['id' => 1, 'name' => 'T-shirt bleu', 'quantity' => 2, 'low_stock_threshold' => 5],
-        ]], 200),
         '*/dashboard/widgets*' => Http::response(['widgets' => $widgets ?? [
             'day' => 'today',
             'date' => today()->toDateString(),
-            'ca_forecast_percent' => 62.5,
-            'ca_forecast_predicted' => 800.0,
+            'ca_forecast_percent' => 112.0,
+            'ca_forecast_predicted' => 286.0,
             'avg_cart' => 45.0,
             'avg_cart_comparison' => 40.0,
             'avg_cart_change' => 12.5,
@@ -48,13 +37,24 @@ function fakeDashboardEndpoints(array $shops = [], ?array $widgets = null, ?arra
             'week_revenue' => 1200.0,
             'week_trend' => 8.0,
         ]], 200),
-        '*/dashboard/top-products*' => Http::response([
-            'day' => 'today',
-            'date' => today()->toDateString(),
-            'products' => $topProducts ?? [
-                ['product_id' => 7, 'name' => 'Chaise design', 'image_url' => 'https://example.test/chaise.jpg', 'category' => 'Mobilier', 'quantity' => 4, 'revenue' => 199.99],
+        '*/forecasts*' => Http::response([
+            'historical' => [],
+            'forecasts' => [],
+            'summary' => $summary ?? ['forecast_30d' => 87000.0, 'forecast_7d' => 20300.0, 'confidence' => 92, 'historical_7d' => 19000.0, 'historical_30d' => 84000.0, 'trend' => 'up'],
+        ], 200),
+        '*/stock-depletion*' => Http::response([
+            'stats' => $stockStats ?? ['total_products' => 214, 'out_of_stock' => 1, 'critical' => 3, 'avg_days_until_stockout' => 12, 'total_stock_value' => 45000.0],
+            'products' => [],
+        ], 200),
+        '*/segments/stats*' => Http::response([
+            'segments' => $segments ?? [
+                ['name' => 'vip', 'customers_count' => 128],
+                ['name' => 'at_risk', 'customers_count' => 6],
             ],
         ], 200),
+        '*/alerts*' => Http::response(['alerts' => $alerts ?? [
+            ['id' => 1, 'severity' => 'critical', 'title' => 'Anomalie détectée', 'message' => 'Ventes en baisse de 34%.', 'created_at' => now()->subHours(2)->toIso8601String()],
+        ]], 200),
         '*/shops*' => Http::response(['shops' => $shops ?: [
             ['id' => 'shop-1', 'name' => 'Ma Boutique', 'sync_status' => 'idle', 'sync_error' => null],
         ]], 200),
@@ -67,12 +67,12 @@ it('shows the dashboard tab bar and KPI data', function () {
     Native::visit('/dashboard')
         ->assertHasTab('Accueil')
         ->assertTabActive('Accueil')
-        ->assertSee('8 450') // revenue_period, formatted
-        ->assertSee('96') // orders_period
-        ->assertSee('312') // customers_count
-        ->assertSee('Jean Dupont')
-        ->assertSee('T-shirt bleu')
-        ->assertElement('rect');
+        ->assertSee('320,50') // revenue_today, formatted
+        ->assertSee('87 000') // forecast_30d
+        ->assertSee('92') // confidence
+        ->assertSee('3') // critical stock count
+        ->assertSee('128') // vip count
+        ->assertSee('Anomalie détectée'); // recent alert title
 });
 
 it('refetches data on pull-to-refresh', function () {
@@ -80,7 +80,7 @@ it('refetches data on pull-to-refresh', function () {
 
     Native::visit('/dashboard')->call('refresh');
 
-    Http::assertSentCount(16); // 8 dashboard (incl. auth/me) on mount, 8 dashboard on refresh — forecasts now live on their own /forecasts screen (Task 7), not embedded here.
+    Http::assertSentCount(16); // 8 dashboard-area calls (incl. auth/me) on mount, 8 on refresh — same total as before Slice C, different endpoint mix (forecasts/stock-depletion/segments/alerts replaced charts/recent-orders/low-stock/top-products).
 });
 
 it('is fully accessible', function () {
@@ -93,44 +93,6 @@ it('shows a generic error instead of crashing when the network is unavailable', 
     Http::fake(fn () => throw new ConnectionException('Could not connect'));
 
     Native::visit('/dashboard')->assertSee('Connexion indisponible');
-});
-
-it('shows a generic error instead of crashing when the charts endpoint returns a 500', function () {
-    Http::fake([
-        '*/auth/me*' => Http::response(['user' => ['name' => 'Test User', 'email' => 'test@example.test']], 200),
-        '*/dashboard/charts*' => Http::response(['message' => 'Server Error'], 500),
-        '*/dashboard/metrics*' => Http::response(['metrics' => [
-            'revenue_today' => 320.5,
-            'orders_today' => 4,
-            'revenue_period' => 8450.0,
-            'orders_period' => 96,
-            'avg_order_value' => 88.02,
-            'products_count' => 214,
-            'low_stock_count' => 6,
-            'customers_count' => 312,
-        ]], 200),
-        '*/dashboard/recent-orders*' => Http::response(['orders' => [
-            ['id' => 1, 'reference' => 'ORD001', 'total_paid' => 45.9, 'order_date' => '2026-08-13T10:00:00Z',
-                'customer' => ['firstname' => 'Jean', 'lastname' => 'Dupont']],
-        ]], 200),
-        '*/dashboard/low-stock*' => Http::response(['products' => [
-            ['id' => 1, 'name' => 'T-shirt bleu', 'quantity' => 2, 'low_stock_threshold' => 5],
-        ]], 200),
-        '*/dashboard/widgets*' => Http::response(['widgets' => [
-            'day' => 'today', 'date' => today()->toDateString(), 'ca_forecast_percent' => 62.5,
-            'ca_forecast_predicted' => 800.0, 'avg_cart' => 45.0, 'avg_cart_comparison' => 40.0,
-            'avg_cart_change' => 12.5, 'new_customers' => 3, 'week_revenue' => 1200.0, 'week_trend' => 8.0,
-        ]], 200),
-        '*/dashboard/top-products*' => Http::response(['day' => 'today', 'date' => today()->toDateString(), 'products' => []], 200),
-        '*/forecasts*' => Http::response([
-            'historical' => [],
-            'forecasts' => [],
-            'summary' => [],
-        ], 200),
-        '*/shops*' => Http::response(['shops' => []], 200),
-    ]);
-
-    Native::visit('/dashboard')->assertSee('Server Error');
 });
 
 it('shows the sync error message when the current shop failed to sync', function () {
@@ -297,196 +259,115 @@ it('fetches widgets scoped to the current day and stores them', function () {
         && ($request['day'] ?? null) === 'yesterday');
 });
 
-it('renders the forecast progress bar scaled to a 0-1 fraction, clamped at 100 percent', function () {
-    fakeDashboardEndpoints(widgets: ['day' => 'today', 'date' => today()->toDateString(), 'ca_forecast_percent' => 150.0, 'ca_forecast_predicted' => 800.0, 'avg_cart' => 0, 'avg_cart_comparison' => 0, 'avg_cart_change' => null, 'new_customers' => 0, 'week_revenue' => 0, 'week_trend' => 0]);
-
-    Native::test(Dashboard::class)
-        ->assertElement('progress_bar', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-forecast-progress' && ($n['props']['value'] ?? null) === 1.0);
-});
-
-it('shows a fallback label instead of the progress bar when the forecast is unavailable', function () {
-    fakeDashboardEndpoints(widgets: ['day' => 'today', 'date' => today()->toDateString(), 'ca_forecast_percent' => null, 'ca_forecast_predicted' => null, 'avg_cart' => 0, 'avg_cart_comparison' => 0, 'avg_cart_change' => null, 'new_customers' => 0, 'week_revenue' => 0, 'week_trend' => 0]);
-
-    Native::test(Dashboard::class)
-        ->assertMissingElement('progress_bar', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-forecast-progress')
-        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-forecast-unavailable');
-});
-
-it('renders the 3 new KPI tiles with null-safe avg cart change', function () {
-    fakeDashboardEndpoints(widgets: ['day' => 'today', 'date' => today()->toDateString(), 'ca_forecast_percent' => 50.0, 'ca_forecast_predicted' => 1000.0, 'avg_cart' => 45.0, 'avg_cart_comparison' => 0.0, 'avg_cart_change' => null, 'new_customers' => 7, 'week_revenue' => 500.0, 'week_trend' => -12.5]);
-
-    Native::test(Dashboard::class)
-        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-new-customers-value' && ($n['props']['text'] ?? null) === '7')
-        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-week-trend-value' && str_contains((string) ($n['props']['text'] ?? ''), '-12,5'));
-});
-
-it('fetches and stores the top products for the current day', function () {
-    // Frozen to the afternoon so the default day scope is "today" — otherwise
-    // the mount fetch would already be day=yesterday and the assertion below
-    // would pass without setDayScope() having triggered a re-fetch.
-    Carbon::setTestNow(Carbon::parse('2026-08-14 15:00:00'));
-    fakeDashboardEndpoints(topProducts: [
-        ['product_id' => 1, 'name' => 'T-shirt', 'image_url' => null, 'category' => 'Vêtements', 'quantity' => 5, 'revenue' => 150.0],
+it('shows a positive hero delta vs the day forecast', function () {
+    fakeDashboardEndpoints(widgets: [
+        'day' => 'today', 'date' => today()->toDateString(), 'ca_forecast_percent' => 112.0,
+        'ca_forecast_predicted' => 286.0, 'avg_cart' => 45.0, 'avg_cart_comparison' => 40.0,
+        'avg_cart_change' => 12.5, 'new_customers' => 3, 'week_revenue' => 1200.0, 'week_trend' => 8.0,
     ]);
 
     $screen = Native::test(Dashboard::class);
 
-    expect($screen->get('topProducts'))->toHaveCount(1);
-
-    $screen->call('setDayScope', 1);
-
-    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/dashboard/top-products')
-        && ($request['day'] ?? null) === 'yesterday');
+    expect($screen->instance()->heroDeltaPercent())->toBe(12.0);
+    $screen->assertSee('+12%');
 });
 
-it('renders a ranked row per top product', function () {
-    fakeDashboardEndpoints(topProducts: [
-        ['product_id' => 1, 'name' => 'T-shirt', 'image_url' => null, 'category' => 'Vêtements', 'quantity' => 5, 'revenue' => 150.0],
+it('shows a negative hero delta vs the day forecast', function () {
+    fakeDashboardEndpoints(widgets: [
+        'day' => 'today', 'date' => today()->toDateString(), 'ca_forecast_percent' => 88.0,
+        'ca_forecast_predicted' => 364.0, 'avg_cart' => 45.0, 'avg_cart_comparison' => 40.0,
+        'avg_cart_change' => 12.5, 'new_customers' => 3, 'week_revenue' => 1200.0, 'week_trend' => 8.0,
     ]);
-
-    Native::test(Dashboard::class)
-        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-top-product-1-name' && ($n['props']['text'] ?? null) === 'T-shirt');
-});
-
-it('shows an empty state when there are no top products', function () {
-    fakeDashboardEndpoints(topProducts: []);
-
-    Native::test(Dashboard::class)
-        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-top-products-empty');
-});
-
-it('switches the top-products empty state from today to yesterday when dayScope changes', function () {
-    // Asserted on the empty state's own `ref`, not a plain assertSee('Hier') /
-    // assertSee('aujourd\'hui') — the button-group toggle's own
-    // :options="['Aujourd\'hui', 'Hier']" already renders both literal
-    // strings elsewhere on this screen, so a substring assertion would pass
-    // vacuously even if this text were still hardcoded to "aujourd'hui".
-    // Same trap documented on the hero day label test above.
-    // Frozen to the afternoon so the default day scope is "today" (see the
-    // DAY_SWITCH_HOUR heuristic) — this test is about toggling, not defaults.
-    Carbon::setTestNow(Carbon::parse('2026-08-14 15:00:00'));
-    fakeDashboardEndpoints(topProducts: []);
 
     $screen = Native::test(Dashboard::class);
 
-    $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-top-products-empty'
-        && ($n['props']['text'] ?? null) === "Aucune vente aujourd'hui.");
-
-    $screen->call('setDayScope', 1);
-
-    $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-top-products-empty'
-        && ($n['props']['text'] ?? null) === 'Aucune vente hier.');
+    expect($screen->instance()->heroDeltaPercent())->toBe(-12.0);
+    $screen->assertSee('-12%');
 });
 
-it('does not show the revenue chart tooltip before any bar is tapped', function () {
-    fakeDashboardEndpoints();
+it('hides the hero delta when the day forecast is unavailable', function () {
+    fakeDashboardEndpoints(widgets: [
+        'day' => 'today', 'date' => today()->toDateString(), 'ca_forecast_percent' => null,
+        'ca_forecast_predicted' => 0.0, 'avg_cart' => 45.0, 'avg_cart_comparison' => 40.0,
+        'avg_cart_change' => 12.5, 'new_customers' => 3, 'week_revenue' => 1200.0, 'week_trend' => 8.0,
+    ]);
 
-    Native::visit('/dashboard')
-        ->assertMissingElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-chart-tooltip');
+    $screen = Native::test(Dashboard::class);
+
+    expect($screen->instance()->heroDeltaPercent())->toBeNull();
+    $tree = $screen->tree();
+    expect(findNodeByRef($tree, 'dashboard-hero-delta'))->toBeNull();
 });
 
-it('shows the tapped bar\'s date and revenue in the chart tooltip', function () {
-    // fakeDashboardEndpoints()'s revenue_margin chart: labels ['01/08', '02/08'],
-    // revenue [100.0, 250.0] — tapping index 1 must surface exactly that pair.
-    fakeDashboardEndpoints();
+it('renders the 3 new KPI cards with their sub-labels', function () {
+    fakeDashboardEndpoints(
+        summary: ['forecast_30d' => 87000.0, 'forecast_7d' => 20300.0, 'confidence' => 92, 'historical_7d' => 19000.0, 'historical_30d' => 84000.0, 'trend' => 'up'],
+        stockStats: ['total_products' => 214, 'out_of_stock' => 1, 'critical' => 3, 'avg_days_until_stockout' => 12, 'total_stock_value' => 45000.0],
+        segments: [['name' => 'vip', 'customers_count' => 128], ['name' => 'at_risk', 'customers_count' => 6]],
+    );
 
-    $screen = Native::visit('/dashboard');
-    $screen->call('selectBar', 1);
+    $screen = Native::test(Dashboard::class);
 
-    $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-chart-tooltip'
-        && ($n['props']['text'] ?? null) === '02/08 — 250,00 €');
+    expect($screen->instance()->forecast30d())->toBe(87000.0);
+    expect($screen->instance()->forecastConfidence())->toBe(92);
+    expect($screen->instance()->criticalStockCount())->toBe(3);
+    expect($screen->instance()->vipCount())->toBe(128);
+    expect($screen->instance()->atRiskCount())->toBe(6);
+
+    $screen->assertSee('87 000')->assertSee('92')->assertSee('3')->assertSee('128')->assertSee('6');
 });
 
-it('wires each revenue bar to selectBar with its own baked-in index', function () {
-    // Element::toArray() registers `@press`'s pressMethod as a top-level
-    // `on_press` field regardless of whether the element type actually
-    // reads it (the same trap documented for Chip's `@press`/on_change
-    // mismatch elsewhere in this suite) — so this only proves something if
-    // the id is compared against the exact per-bar expression, not just
-    // isset(). It also proves the index is genuinely baked per-bar: a view
-    // where every rect carried `@press="selectBar(0)"` would still pass an
-    // isset()-only check but fails this one, since bar-1's id would then
-    // equal callbackIdFor('selectBar(0)') instead of ('selectBar(1)').
-    fakeDashboardEndpoints();
+it('looks up VIP and at-risk counts by segment name, not array position', function () {
+    // Segments returned out of the "expected" order — proves the lookup is by
+    // name, not index, since a naive $segments[0]/$segments[1] would swap these.
+    fakeDashboardEndpoints(segments: [
+        ['name' => 'at_risk', 'customers_count' => 9],
+        ['name' => 'vip', 'customers_count' => 200],
+    ]);
 
-    Native::visit('/dashboard')
-        ->assertElement('rect', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-chart-bar-0'
-            && ($n['on_press'] ?? null) === callbackIdFor('selectBar(0)'))
-        ->assertElement('rect', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-chart-bar-1'
-            && ($n['on_press'] ?? null) === callbackIdFor('selectBar(1)'));
+    $screen = Native::test(Dashboard::class);
+
+    expect($screen->instance()->vipCount())->toBe(200);
+    expect($screen->instance()->atRiskCount())->toBe(9);
 });
 
-it('gives each revenue bar an a11y-label announcing its date and value', function () {
-    // assertAccessible() has no audit rule for the `rect` type (verified by
-    // reading TestableComponent::collectA11yViolations()), so it would stay
-    // green even if these labels were missing entirely — this asserts the
-    // resolved `a11y_label` prop directly instead, on both bars, so a
-    // regression that drops or misindexes the label is actually caught.
-    fakeDashboardEndpoints();
+it('defaults VIP and at-risk counts to zero when the segment is absent', function () {
+    fakeDashboardEndpoints(segments: []);
 
-    Native::visit('/dashboard')
-        ->assertElement('rect', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-chart-bar-0'
-            && ($n['props']['a11y_label'] ?? null) === '01/08 — 100,00 €')
-        ->assertElement('rect', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-chart-bar-1'
-            && ($n['props']['a11y_label'] ?? null) === '02/08 — 250,00 €');
+    $screen = Native::test(Dashboard::class);
+
+    expect($screen->instance()->vipCount())->toBe(0);
+    expect($screen->instance()->atRiskCount())->toBe(0);
 });
 
-it('deselects the revenue bar and hides the tooltip when tapped a second time', function () {
-    fakeDashboardEndpoints();
+it('shows the 3 most recent alerts with an empty state when there are none', function () {
+    fakeDashboardEndpoints(alerts: []);
 
-    $screen = Native::visit('/dashboard');
-    $screen->call('selectBar', 1);
-
-    // Confirm the tooltip is genuinely showing between the two taps, so this
-    // test fails if selectBar() is broken outright (not only if the toggle-
-    // off branch specifically regresses).
-    $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-chart-tooltip');
-
-    $screen->call('selectBar', 1);
-
-    expect($screen->get('selectedBarIndex'))->toBeNull();
-    $screen->assertMissingElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-chart-tooltip');
+    Native::visit('/dashboard')->assertSee('Aucune alerte récente.');
 });
 
-it('gives the selected revenue bar a different style than an unselected bar', function () {
-    // Before any tap all bars share the same (unselected) style; after
-    // selecting bar 0 only that bar's background should change — proves
-    // the conditional class is actually wired to $selectedBarIndex rather
-    // than always-on or always-off.
+it('navigates to the alerts tab from "Tout voir"', function () {
     fakeDashboardEndpoints();
 
-    $screen = Native::visit('/dashboard');
-    $before = $screen->tree();
-    $bar0Before = findNodeByRef($before, 'dashboard-chart-bar-0');
-    $bar1Before = findNodeByRef($before, 'dashboard-chart-bar-1');
+    $screen = Native::test(Dashboard::class);
+    $screen->call('goAlerts');
 
-    expect($bar0Before)->not->toBeNull();
-    expect($bar1Before)->not->toBeNull();
-    expect($bar0Before['style']['bg_color'] ?? null)->toBe($bar1Before['style']['bg_color'] ?? null);
-
-    $screen->call('selectBar', 0);
-
-    $after = $screen->tree();
-    $bar0After = findNodeByRef($after, 'dashboard-chart-bar-0');
-    $bar1After = findNodeByRef($after, 'dashboard-chart-bar-1');
-
-    expect($bar0After['style']['bg_color'] ?? null)
-        ->not->toBe($bar1After['style']['bg_color'] ?? null)
-        ->not->toBe($bar0Before['style']['bg_color'] ?? null);
+    $screen->assertNavigatedTo('/alerts');
 });
 
-it('resets the selected bar index when the chart data is refreshed', function () {
-    fakeDashboardEndpoints();
+it('shows a generic error instead of crashing when the forecasts endpoint returns a 500', function () {
+    Http::fake([
+        '*/auth/me*' => Http::response(['user' => ['name' => 'Test User', 'email' => 'test@example.test']], 200),
+        '*/dashboard/metrics*' => Http::response(['metrics' => ['revenue_today' => 320.5, 'orders_today' => 4, 'revenue_period' => 8450.0, 'orders_period' => 96, 'avg_order_value' => 88.02, 'products_count' => 214, 'low_stock_count' => 6, 'customers_count' => 312]], 200),
+        '*/dashboard/widgets*' => Http::response(['widgets' => ['day' => 'today', 'date' => today()->toDateString(), 'ca_forecast_percent' => 62.5, 'ca_forecast_predicted' => 800.0, 'avg_cart' => 45.0, 'avg_cart_comparison' => 40.0, 'avg_cart_change' => 12.5, 'new_customers' => 3, 'week_revenue' => 1200.0, 'week_trend' => 8.0]], 200),
+        '*/forecasts*' => Http::response(['message' => 'Server Error'], 500),
+        '*/stock-depletion*' => Http::response(['stats' => ['total_products' => 0, 'out_of_stock' => 0, 'critical' => 0, 'avg_days_until_stockout' => 0, 'total_stock_value' => 0], 'products' => []], 200),
+        '*/segments/stats*' => Http::response(['segments' => []], 200),
+        '*/alerts*' => Http::response(['alerts' => []], 200),
+        '*/shops*' => Http::response(['shops' => []], 200),
+    ]);
 
-    $screen = Native::visit('/dashboard');
-    $screen->call('selectBar', 0);
-
-    expect($screen->get('selectedBarIndex'))->toBe(0);
-
-    fakeDashboardEndpoints();
-    $screen->call('refresh');
-
-    expect($screen->get('selectedBarIndex'))->toBeNull();
+    Native::visit('/dashboard')->assertSee('Server Error');
 });
 
 it('opens and closes the shop switcher sheet, loading shops on open', function () {

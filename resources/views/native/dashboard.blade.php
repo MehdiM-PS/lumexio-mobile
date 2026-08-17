@@ -27,164 +27,64 @@
             </row>
         @endif
 
-        <row class="w-full justify-between">
+        @php $heroDelta = $this->heroDeltaPercent(); @endphp
+        <row class="w-full justify-between items-baseline">
             <column class="gap-1">
                 <text ref="dashboard-hero-day-label" class="text-xs text-theme-on-surface-variant">{{ $dayScope === 1 ? 'Hier' : "Aujourd'hui" }}</text>
-                <text class="text-base font-semibold text-theme-on-background">
-                    {{ number_format($metrics['revenue_today'] ?? 0, 2, ',', ' ') }} € · {{ $metrics['orders_today'] ?? 0 }} commandes
+                <text class="text-xl font-bold text-theme-on-background" content-transition="numeric">
+                    {{ number_format($metrics['revenue_today'] ?? 0, 2, ',', ' ') }} €
                 </text>
             </column>
+            @if ($heroDelta !== null)
+                <text ref="dashboard-hero-delta" class="text-sm font-semibold {{ $heroDelta >= 0 ? 'text-theme-success' : 'text-theme-destructive' }}">
+                    {{ $heroDelta >= 0 ? '+' : '' }}{{ number_format($heroDelta, 0, ',', ' ') }}%
+                </text>
+            @endif
         </row>
-
-        @if ($widgets && $widgets['ca_forecast_percent'] !== null)
-            <column class="w-full gap-1">
-                <progress-bar ref="dashboard-forecast-progress" value="{{ min($widgets['ca_forecast_percent'], 100) / 100 }}" class="w-full" />
-                <row class="w-full justify-between">
-                    <text class="text-xs text-theme-on-surface-variant">{{ $widgets['ca_forecast_percent'] }}% de l'objectif atteint</text>
-                    <text class="text-xs text-theme-on-surface-variant">objectif : {{ number_format($widgets['ca_forecast_predicted'], 0, ',', ' ') }} €</text>
-                </row>
-            </column>
-        @elseif ($widgets)
-            <text ref="dashboard-forecast-unavailable" class="text-xs text-theme-on-surface-variant">Prévision indisponible</text>
-        @endif
+        <text class="text-xs text-theme-on-surface-variant">vs prévision du jour</text>
 
         <row class="w-full gap-3">
             <column class="flex-1 gap-1 rounded-lg bg-theme-surface-variant p-4">
-                <text class="text-xs text-theme-on-surface-variant">CA période</text>
-                <text class="text-xl font-bold text-theme-on-surface" content-transition="numeric">
-                    {{ $this->formattedRevenuePeriod() }}
+                <text class="text-xs text-theme-on-surface-variant">Prévision 30j</text>
+                <text ref="dashboard-kpi-forecast-30d" class="text-xl font-bold text-theme-on-surface" content-transition="numeric">
+                    {{ number_format($this->forecast30d(), 0, ',', ' ') }} €
                 </text>
+                <text class="text-xs text-theme-on-surface-variant">Confiance {{ $this->forecastConfidence() }}%</text>
             </column>
             <column class="flex-1 gap-1 rounded-lg bg-theme-surface-variant p-4">
-                <text class="text-xs text-theme-on-surface-variant">Commandes</text>
-                <text class="text-xl font-bold text-theme-on-surface" content-transition="numeric">
-                    {{ $metrics['orders_period'] ?? 0 }}
+                <text class="text-xs text-theme-on-surface-variant">Ruptures prévues</text>
+                <text ref="dashboard-kpi-critical-stock" class="text-xl font-bold text-theme-on-surface" content-transition="numeric">
+                    {{ $this->criticalStockCount() }}
                 </text>
-            </column>
-        </row>
-
-        <row class="w-full gap-3">
-            <column class="flex-1 gap-1 rounded-lg bg-theme-surface-variant p-4">
-                <text class="text-xs text-theme-on-surface-variant">Panier moyen</text>
-                <text class="text-xl font-bold text-theme-on-surface">
-                    {{ number_format($metrics['avg_order_value'] ?? 0, 2, ',', ' ') }} €
-                </text>
-            </column>
-            <column class="flex-1 gap-1 rounded-lg bg-theme-surface-variant p-4">
-                <text class="text-xs text-theme-on-surface-variant">Clients</text>
-                <text class="text-xl font-bold text-theme-on-surface" content-transition="numeric">
-                    {{ $metrics['customers_count'] ?? 0 }}
-                </text>
-            </column>
-        </row>
-
-        <row class="w-full gap-3">
-            <column class="flex-1 gap-1 rounded-lg bg-theme-surface-variant p-4">
-                <text class="text-xs text-theme-on-surface-variant">Panier moyen ({{ $dayScope === 1 ? 'hier' : 'aujourd\'hui' }})</text>
-                <text class="text-xl font-bold text-theme-on-surface" content-transition="numeric">
-                    {{ $widgets ? number_format($widgets['avg_cart'], 2, ',', ' ') : '0,00' }} €
-                </text>
-                @if ($widgets && $widgets['avg_cart_change'] !== null)
-                    <text class="text-xs {{ $widgets['avg_cart_change'] >= 0 ? 'text-theme-primary' : 'text-theme-destructive' }}">
-                        {{ $widgets['avg_cart_change'] >= 0 ? '+' : '' }}{{ number_format($widgets['avg_cart_change'], 1, ',', ' ') }}%
-                    </text>
-                @endif
-            </column>
-            <column class="flex-1 gap-1 rounded-lg bg-theme-surface-variant p-4">
-                <text class="text-xs text-theme-on-surface-variant">Nouveaux clients</text>
-                <text ref="dashboard-new-customers-value" class="text-xl font-bold text-theme-on-surface" content-transition="numeric">
-                    {{ $widgets['new_customers'] ?? 0 }}
-                </text>
+                <text class="text-xs text-theme-on-surface-variant">Sous 7 jours</text>
             </column>
         </row>
 
         <row class="w-full">
             <column class="flex-1 gap-1 rounded-lg bg-theme-surface-variant p-4">
-                <text class="text-xs text-theme-on-surface-variant">Tendance semaine</text>
-                <text ref="dashboard-week-trend-value" class="text-xl font-bold {{ ($widgets['week_trend'] ?? 0) >= 0 ? 'text-theme-primary' : 'text-theme-destructive' }}">
-                    {{ $widgets ? (($widgets['week_trend'] >= 0 ? '+' : '').number_format($widgets['week_trend'], 1, ',', ' ').'%') : '—' }}
+                <text class="text-xs text-theme-on-surface-variant">Clients VIP</text>
+                <text ref="dashboard-kpi-vip" class="text-xl font-bold text-theme-on-surface" content-transition="numeric">
+                    {{ $this->vipCount() }}
                 </text>
-                <text class="text-xs text-theme-on-surface-variant">
-                    {{ $widgets ? number_format($widgets['week_revenue'], 0, ',', ' ').' €' : '' }}
-                </text>
+                <text class="text-xs text-theme-destructive">{{ $this->atRiskCount() }} à risque</text>
             </column>
         </row>
 
-        <text class="text-xs text-theme-on-surface-variant">
-            {{ $metrics['products_count'] ?? 0 }} produits actifs · {{ $metrics['low_stock_count'] ?? 0 }} en stock bas
-        </text>
-
-        @if (count($chartRevenue) > 0)
-            @if ($selectedBarIndex !== null)
-                <text ref="dashboard-chart-tooltip" class="text-xs text-theme-on-surface-variant">
-                    {{ $chartLabels[$selectedBarIndex] ?? '' }} — {{ number_format($chartRevenue[$selectedBarIndex] ?? 0, 2, ',', ' ') }} €
-                </text>
-            @endif
-            <canvas class="w-full h-[80]">
-                <row class="w-full h-full items-end justify-between gap-2">
-                    @foreach ($chartRevenue as $value)
-                        <rect ref="dashboard-chart-bar-{{ $loop->index }}" class="flex-1 rounded-sm {{ $selectedBarIndex === $loop->index ? 'bg-theme-primary' : 'bg-theme-primary/50' }}" height="{{ $this->barHeight($value) }}" a11y-label="{{ $chartLabels[$loop->index] ?? '' }} — {{ number_format($value, 2, ',', ' ') }} €" @press="selectBar({{ $loop->index }})" />
-                    @endforeach
-                </row>
-            </canvas>
-        @endif
-
-        <text class="text-base font-semibold text-theme-on-background">Commandes récentes</text>
+        <row class="w-full justify-between items-baseline">
+            <text class="text-base font-semibold text-theme-on-background">Alertes récentes</text>
+            <text ref="dashboard-alerts-see-all" class="text-sm font-semibold text-theme-primary" @press="goAlerts">Tout voir</text>
+        </row>
         <column class="w-full gap-2">
-            @forelse ($recentOrders as $order)
-                <row class="w-full justify-between rounded-lg bg-theme-surface-variant px-4 py-[10]">
-                    <column class="gap-0">
-                        <text class="text-sm font-medium text-theme-on-surface">
-                            {{ $order['customer']['firstname'] ?? '' }} {{ $order['customer']['lastname'] ?? '' }}
-                        </text>
-                        <text class="text-xs text-theme-on-surface-variant">{{ $order['reference'] ?? '' }}</text>
-                    </column>
-                    <text class="text-sm font-semibold text-theme-on-surface">
-                        {{ number_format($order['total_paid'] ?? 0, 2, ',', ' ') }} €
-                    </text>
-                </row>
-            @empty
-                <text class="text-sm text-theme-on-surface-variant">Aucune commande récente.</text>
-            @endforelse
-        </column>
-
-        <text class="text-base font-semibold text-theme-on-background">Stock bas</text>
-        <column class="w-full gap-2">
-            @forelse ($lowStockProducts as $product)
-                <row class="w-full justify-between rounded-lg bg-theme-surface-variant px-4 py-[10]">
-                    <text class="text-sm font-medium text-theme-on-surface">{{ $product['name'] ?? '' }}</text>
-                    <text class="text-sm text-theme-destructive">
-                        {{ $product['quantity'] ?? 0 }} / {{ $product['low_stock_threshold'] ?? 0 }}
-                    </text>
-                </row>
-            @empty
-                <text class="text-sm text-theme-on-surface-variant">Aucun produit en stock bas.</text>
-            @endforelse
-        </column>
-
-        <text class="text-base font-semibold text-theme-on-background">Top 5 produits</text>
-        <column class="w-full gap-2">
-            @forelse ($topProducts as $rank => $product)
-                <row class="w-full items-center gap-3 rounded-lg bg-theme-surface-variant px-4 py-[10]">
-                    <text class="w-[24] text-sm font-semibold text-theme-on-surface-variant">{{ $rank + 1 }}</text>
-                    @if ($product['image_url'])
-                        <image src="{{ $product['image_url'] }}" alt="{{ $product['name'] }}" class="h-[40] w-[40] rounded-md" />
-                    @endif
+            @forelse ($recentAlerts as $alert)
+                <row class="w-full items-start gap-2 rounded-lg bg-theme-surface-variant px-4 py-[10]">
+                    <column class="h-[8] w-[8] rounded-full {{ ($alert['severity'] ?? 'info') === 'critical' ? 'bg-theme-destructive' : (($alert['severity'] ?? 'info') === 'warning' ? 'bg-theme-accent' : 'bg-theme-success') }} mt-[6]" />
                     <column class="flex-1 gap-0">
-                        <text ref="dashboard-top-product-{{ $product['product_id'] }}-name" class="text-sm font-medium text-theme-on-surface">
-                            {{ $product['name'] }}
-                        </text>
-                        @if ($product['category'])
-                            <text class="text-xs text-theme-on-surface-variant">{{ $product['category'] }}</text>
-                        @endif
-                    </column>
-                    <column class="items-end gap-0">
-                        <text class="text-sm font-semibold text-theme-on-surface">{{ number_format($product['revenue'], 2, ',', ' ') }} €</text>
-                        <text class="text-xs text-theme-on-surface-variant">{{ $product['quantity'] }} vendu(s)</text>
+                        <text class="text-sm font-semibold text-theme-on-surface">{{ $alert['title'] ?? '' }}</text>
+                        <text class="text-xs text-theme-on-surface-variant">{{ $alert['message'] ?? '' }}</text>
                     </column>
                 </row>
             @empty
-                <text ref="dashboard-top-products-empty" class="text-sm text-theme-on-surface-variant">{{ $dayScope === 1 ? 'Aucune vente hier.' : "Aucune vente aujourd'hui." }}</text>
+                <text ref="dashboard-alerts-empty" class="text-sm text-theme-on-surface-variant">Aucune alerte récente.</text>
             @endforelse
         </column>
 

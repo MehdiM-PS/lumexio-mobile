@@ -25,16 +25,6 @@ class Dashboard extends NativeComponent
 
     public array $metrics = [];
 
-    public array $chartLabels = [];
-
-    public array $chartRevenue = [];
-
-    public ?int $selectedBarIndex = null;
-
-    public array $recentOrders = [];
-
-    public array $lowStockProducts = [];
-
     public bool $loading = true;
 
     public ?string $syncStatus = null;
@@ -45,7 +35,17 @@ class Dashboard extends NativeComponent
 
     public ?array $widgets = null;
 
-    public array $topProducts = [];
+    /** Shop-level forecast summary from GET /forecasts (forecast_30d, confidence, …). */
+    public array $summary = [];
+
+    /** Stock-depletion stats from GET /stock-depletion (critical, out_of_stock, …). */
+    public array $stockStats = [];
+
+    /** Customer segment stats from GET /segments/stats — list of {name, customers_count}. */
+    public array $segments = [];
+
+    /** The 3 most recent alerts, from GET /alerts?per_page=3. */
+    public array $recentAlerts = [];
 
     public function mount(): void
     {
@@ -70,25 +70,21 @@ class Dashboard extends NativeComponent
         $this->loading = true;
         $this->resetApiError();
         $this->loadCurrentUser();
-        // Reset before the fetch so a stale index never survives into
-        // freshly-fetched data with a possibly-different length.
-        $this->selectedBarIndex = null;
 
         $metrics = $this->callApi(fn () => app(LumexioApi::class)->get('/dashboard/metrics', ['day' => $this->dayScopeValue()]));
-        $charts = $this->callApi(fn () => app(LumexioApi::class)->get('/dashboard/charts'));
-        $orders = $this->callApi(fn () => app(LumexioApi::class)->get('/dashboard/recent-orders', ['limit' => 10]));
-        $lowStock = $this->callApi(fn () => app(LumexioApi::class)->get('/dashboard/low-stock', ['limit' => 10]));
         $widgets = $this->callApi(fn () => app(LumexioApi::class)->get('/dashboard/widgets', ['day' => $this->dayScopeValue()]));
-        $topProducts = $this->callApi(fn () => app(LumexioApi::class)->get('/dashboard/top-products', ['day' => $this->dayScopeValue()]));
+        $forecasts = $this->callApi(fn () => app(LumexioApi::class)->get('/forecasts'));
+        $stockDepletion = $this->callApi(fn () => app(LumexioApi::class)->get('/stock-depletion'));
+        $segments = $this->callApi(fn () => app(LumexioApi::class)->get('/segments/stats'));
+        $alerts = $this->callApi(fn () => app(LumexioApi::class)->get('/alerts', ['per_page' => 3]));
         $shops = $this->callApi(fn () => app(LumexioApi::class)->get('/shops'));
 
         $this->metrics = $metrics['metrics'] ?? [];
-        $this->chartLabels = $charts['revenue_margin']['labels'] ?? [];
-        $this->chartRevenue = $charts['revenue_margin']['revenue'] ?? [];
-        $this->recentOrders = $orders['orders'] ?? [];
-        $this->lowStockProducts = $lowStock['products'] ?? [];
         $this->widgets = $widgets['widgets'] ?? null;
-        $this->topProducts = $topProducts['products'] ?? [];
+        $this->summary = $forecasts['summary'] ?? [];
+        $this->stockStats = $stockDepletion['stats'] ?? [];
+        $this->segments = $segments['segments'] ?? [];
+        $this->recentAlerts = $alerts['alerts'] ?? [];
 
         $currentShopId = LocalState::current()->shop_id;
         $currentShop = filled($currentShopId)
@@ -102,21 +98,41 @@ class Dashboard extends NativeComponent
         $this->loading = false;
     }
 
-    public function formattedRevenuePeriod(): string
+    /**
+     * Today's/yesterday's revenue as a delta vs. that day's forecast —
+     * `ca_forecast_percent` (already actual ÷ forecast × 100) minus 100.
+     * Null when no forecast exists for the day (never a fabricated 0%).
+     */
+    public function heroDeltaPercent(): ?float
     {
-        return number_format($this->metrics['revenue_period'] ?? 0, 0, ',', ' ').' €';
+        $percent = $this->widgets['ca_forecast_percent'] ?? null;
+
+        return $percent === null ? null : $percent - 100;
     }
 
-    public function barHeight(float $value): int
+    public function forecast30d(): float
     {
-        $max = max($this->chartRevenue ?: [1]);
-
-        return $max > 0 ? max(4, (int) round(($value / $max) * 72)) : 4;
+        return (float) ($this->summary['forecast_30d'] ?? 0);
     }
 
-    public function selectBar(int $index): void
+    public function forecastConfidence(): int
     {
-        $this->selectedBarIndex = $this->selectedBarIndex === $index ? null : $index;
+        return (int) ($this->summary['confidence'] ?? 0);
+    }
+
+    public function criticalStockCount(): int
+    {
+        return (int) ($this->stockStats['critical'] ?? 0);
+    }
+
+    public function vipCount(): int
+    {
+        return (int) (collect($this->segments)->firstWhere('name', 'vip')['customers_count'] ?? 0);
+    }
+
+    public function atRiskCount(): int
+    {
+        return (int) (collect($this->segments)->firstWhere('name', 'at_risk')['customers_count'] ?? 0);
     }
 
     public function render(): View
