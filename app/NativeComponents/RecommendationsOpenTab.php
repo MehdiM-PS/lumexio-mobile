@@ -4,7 +4,6 @@ namespace App\NativeComponents;
 
 use App\NativeComponents\Concerns\HandlesApiErrors;
 use App\Services\LumexioApi;
-use Carbon\Carbon;
 use Illuminate\View\View;
 use Native\Mobile\Edge\NativeComponent;
 
@@ -39,16 +38,6 @@ class RecommendationsOpenTab extends NativeComponent
     {
         $this->priorityFilter = $priority;
         $this->refresh();
-    }
-
-    public function groupedRecommendations(): array
-    {
-        return collect($this->recommendations)->groupBy('group')->all();
-    }
-
-    public function isNew(string $createdAt): bool
-    {
-        return Carbon::parse($createdAt)->greaterThan(now()->subHours(24));
     }
 
     public function markDone(int $id): void

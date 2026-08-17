@@ -24,34 +24,60 @@
             <chip ref="reco-priority-low" label="Basse" :selected="$priorityFilter === 'low'" @change="setPriorityFilter('low')" />
         </row>
 
-        @forelse ($this->groupedRecommendations() as $groupKey => $items)
-            <text ref="reco-group-{{ $groupKey }}-heading" class="text-base font-semibold text-theme-on-background">
-                {{ $items->first()['group_label'] }}
-            </text>
-            <column class="w-full gap-2">
-                @foreach ($items as $rec)
-                    <column ref="reco-{{ $rec['id'] }}-card" class="w-full gap-2 rounded-lg border-4 border-[{{ $rec['priority'] === 'high' ? '#ef4444' : ($rec['priority'] === 'medium' ? '#f59e0b' : '#60a5fa') }}] bg-theme-surface-variant p-4">
-                        <row class="w-full justify-between">
-                            <text class="text-sm font-semibold text-theme-on-surface">{{ $rec['title'] }}</text>
-                            @if ($this->isNew($rec['created_at']))
-                                <text ref="reco-{{ $rec['id'] }}-new-badge" class="text-xs font-medium text-theme-primary">NOUVEAU</text>
-                            @endif
-                        </row>
-                        <text class="text-sm text-theme-on-surface-variant">{{ $rec['description'] }}</text>
-                        @foreach ($rec['data_fields'] as $field)
-                            <text class="text-xs text-theme-on-surface-variant">{{ $field['label'] }}: {{ $field['value'] }}</text>
-                        @endforeach
-                        <row class="w-full gap-2">
-                            <button ref="reco-{{ $rec['id'] }}-done" variant="primary" @press="markDone({{ $rec['id'] }})">Fait</button>
-                            <button ref="reco-{{ $rec['id'] }}-reject" variant="secondary" @press="reject({{ $rec['id'] }})">Rejeter</button>
-                        </row>
-                    </column>
-                @endforeach
-            </column>
-        @empty
-            @if (! $lastApiError)
-                <text ref="reco-open-empty" class="text-sm text-theme-on-surface-variant">Aucune recommandation pour le moment.</text>
-            @endif
-        @endforelse
+        <column class="w-full gap-2">
+            @forelse ($recommendations as $rec)
+                <column ref="reco-{{ $rec['id'] }}-card" class="w-full gap-2 rounded-lg border border-theme-outline bg-theme-surface p-4">
+                    <row class="w-full items-center gap-2">
+                        <badge
+                            ref="reco-{{ $rec['id'] }}-priority-badge"
+                            label="{{ $rec['priority_label'] }}"
+                            variant="{{ $rec['priority'] === 'high' ? 'destructive' : ($rec['priority'] === 'medium' ? 'accent' : 'primary') }}"
+                        />
+                        <text class="flex-1 text-xs text-theme-on-surface-variant">{{ $rec['type_label'] }} · {{ $rec['freshness_label'] }}</text>
+                    </row>
+
+                    <text class="text-sm font-semibold text-theme-on-surface">{{ $rec['title'] }}</text>
+
+                    @if ($rec['ref'])
+                        <text ref="reco-{{ $rec['id'] }}-ref" class="text-xs text-theme-on-surface-variant">{{ $rec['ref'] }}</text>
+                    @endif
+
+                    <text class="text-sm text-theme-on-surface-variant">{{ $rec['description'] }}</text>
+
+                    @if (! empty($rec['data_fields']))
+                        <column class="w-full gap-2">
+                            @foreach (array_chunk($rec['data_fields'], 2) as $pair)
+                                <row class="w-full gap-3">
+                                    @foreach ($pair as $field)
+                                        <column class="flex-1 gap-1">
+                                            <text class="text-xs text-theme-on-surface-variant">{{ $field['label'] }}</text>
+                                            <text class="text-sm font-semibold text-theme-on-surface">{{ $field['value'] }}</text>
+                                        </column>
+                                    @endforeach
+                                </row>
+                            @endforeach
+                        </column>
+                    @endif
+
+                    @if (! empty($rec['actions']))
+                        <column class="w-full gap-1">
+                            <text class="text-xs font-semibold text-theme-on-surface-variant">Actions recommandées</text>
+                            @foreach ($rec['actions'] as $action)
+                                <text class="text-xs text-theme-on-surface-variant">• {{ $action }}</text>
+                            @endforeach
+                        </column>
+                    @endif
+
+                    <row class="w-full gap-2">
+                        <button ref="reco-{{ $rec['id'] }}-done" variant="primary" icon="checkmark" @press="markDone({{ $rec['id'] }})">Effectuée</button>
+                        <button ref="reco-{{ $rec['id'] }}-reject" variant="secondary" icon="xmark" @press="reject({{ $rec['id'] }})">Pas intéressé</button>
+                    </row>
+                </column>
+            @empty
+                @if (! $lastApiError)
+                    <text ref="reco-open-empty" class="text-sm text-theme-on-surface-variant">Aucune recommandation pour le moment.</text>
+                @endif
+            @endforelse
+        </column>
     </column>
 </refreshable>
