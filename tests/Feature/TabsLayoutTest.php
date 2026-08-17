@@ -21,14 +21,11 @@ function fakeTabsLayoutEndpoints(): void
             'revenue_today' => 0, 'orders_today' => 0, 'revenue_period' => 0, 'orders_period' => 0,
             'avg_order_value' => 0, 'products_count' => 0, 'low_stock_count' => 0, 'customers_count' => 0,
         ]], 200),
-        '*/dashboard/charts*' => Http::response([
-            'revenue_margin' => ['labels' => [], 'revenue' => [], 'margin' => []],
-            'stock' => ['labels' => [], 'quantity' => [], 'value' => []],
-        ], 200),
-        '*/dashboard/recent-orders*' => Http::response(['orders' => []], 200),
-        '*/dashboard/low-stock*' => Http::response(['products' => []], 200),
         '*/dashboard/widgets*' => Http::response(['widgets' => null], 200),
-        '*/dashboard/top-products*' => Http::response(['day' => 'today', 'date' => today()->toDateString(), 'products' => []], 200),
+        '*/forecasts*' => Http::response(['historical' => [], 'forecasts' => [], 'summary' => []], 200),
+        '*/stock-depletion*' => Http::response(['stats' => [], 'products' => []], 200),
+        '*/segments/stats*' => Http::response(['segments' => []], 200),
+        '*/alerts*' => Http::response(['alerts' => []], 200),
         '*/shops*' => Http::response(['shops' => []], 200),
     ]);
 }
