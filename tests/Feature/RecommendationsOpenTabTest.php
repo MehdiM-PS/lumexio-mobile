@@ -272,13 +272,12 @@ it('renders data fields as a two-column metrics grid', function () {
         ]]),
     ]);
 
-    Native::visit('/recommendations')
-        ->assertSee('Produit')
-        ->assertSee('T-shirt bleu')
-        ->assertSee('Stock')
-        ->assertSee('2 unités')
-        ->assertSee('Ventes/jour')
-        ->assertSee('5');
+    $tree = Native::test(RecommendationsOpenTab::class)->tree();
+    $metrics = findNodeByRef($tree, 'reco-1-metrics');
+
+    expect($metrics['children'])->toHaveCount(2);
+    expect($metrics['children'][0]['children'])->toHaveCount(2);
+    expect($metrics['children'][1]['children'])->toHaveCount(1);
 });
 
 it('labels the action buttons Effectuée and Pas intéressé with icons', function () {

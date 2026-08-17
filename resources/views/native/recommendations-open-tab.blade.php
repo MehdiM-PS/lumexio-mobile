@@ -45,7 +45,7 @@
                     <text class="text-sm text-theme-on-surface-variant">{{ $rec['description'] }}</text>
 
                     @if (! empty($rec['data_fields']))
-                        <column class="w-full gap-2">
+                        <column ref="reco-{{ $rec['id'] }}-metrics" class="w-full gap-2">
                             @foreach (array_chunk($rec['data_fields'], 2) as $pair)
                                 <row class="w-full gap-3">
                                     @foreach ($pair as $field)
