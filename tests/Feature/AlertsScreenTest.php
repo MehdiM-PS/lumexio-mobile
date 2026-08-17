@@ -65,6 +65,41 @@ it('shows the stat tiles', function () {
         ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'alerts-stat-today' && ($n['props']['text'] ?? null) === '1');
 });
 
+it('shows the page title and active-alerts subtitle', function () {
+    fakeAlertsScreenEndpoints(stats: ['total' => 12, 'unread' => 4, 'critical_unread' => 1, 'today' => 2]);
+
+    Native::visit('/alerts')
+        ->assertSee('Alertes')
+        ->assertSee('12 alertes actives');
+});
+
+it('renders a severity dot instead of a badge, colored by severity', function () {
+    fakeAlertsScreenEndpoints(alerts: [
+        ['id' => 1, 'type' => 'stock_low', 'type_label' => 'Stock bas', 'severity' => 'critical', 'title' => 'Rupture imminente', 'message' => 'Stock à 0.', 'created_at' => now()->toIso8601String(), 'is_read' => false, 'is_sent' => false],
+        ['id' => 2, 'type' => 'sales_drop', 'type_label' => 'Baisse des ventes', 'severity' => 'warning', 'title' => 'Ventes en baisse', 'message' => 'Baisse de 20%.', 'created_at' => now()->toIso8601String(), 'is_read' => false, 'is_sent' => false],
+        ['id' => 3, 'type' => 'pattern_detected', 'type_label' => 'Anomalie détectée', 'severity' => 'info', 'title' => 'Anomalie', 'message' => 'Détail.', 'created_at' => now()->toIso8601String(), 'is_read' => true, 'is_sent' => false],
+    ]);
+
+    $tree = Native::test(Alerts::class)->tree();
+
+    $critical = findNodeByRef($tree, 'alert-1-dot');
+    $warning = findNodeByRef($tree, 'alert-2-dot');
+    $info = findNodeByRef($tree, 'alert-3-dot');
+
+    expect($critical['style']['bg_color'] ?? null)->toContain('E24947'); // theme destructive
+    expect($warning['style']['bg_color'] ?? null)->toContain('EC7C0E'); // theme accent
+    expect($info['style']['bg_color'] ?? null)->toContain('2D5D5A'); // theme primary
+    expect($critical['style']['bg_color'] ?? null)->not->toBe($warning['style']['bg_color'] ?? null);
+});
+
+it('folds type_label into the time line instead of a separate row', function () {
+    fakeAlertsScreenEndpoints(alerts: [
+        ['id' => 1, 'type' => 'stock_low', 'type_label' => 'Stock bas', 'severity' => 'critical', 'title' => 'Rupture imminente', 'message' => 'Stock à 0.', 'created_at' => '2026-08-17T10:00:00Z', 'is_read' => false, 'is_sent' => false],
+    ]);
+
+    Native::visit('/alerts')->assertSee('17/08/2026 10:00 · Stock bas');
+});
+
 it('filters by severity using the real chip binding', function () {
     fakeAlertsScreenEndpoints(alerts: [sampleAlert()]);
 

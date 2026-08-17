@@ -6,6 +6,9 @@
             </row>
         @endif
 
+        <text class="text-lg font-bold text-theme-on-background">Alertes</text>
+        <text class="text-xs text-theme-on-surface-variant">{{ $stats['total'] }} alertes actives</text>
+
         <row class="w-full gap-2">
             <column class="flex-1 gap-1 rounded-lg bg-theme-surface-variant p-3">
                 <text class="text-xs text-theme-on-surface-variant">Total</text>
@@ -51,19 +54,13 @@
 
         <column class="w-full gap-2">
             @forelse ($alerts as $alert)
-                <row class="w-full items-start justify-between gap-2 rounded-lg border border-theme-outline bg-theme-surface px-4 py-[12]">
+                <row class="w-full items-start gap-[11] rounded-lg border border-theme-outline bg-theme-surface px-4 py-[13]">
+                    <column ref="alert-{{ $alert['id'] }}-dot" class="h-[8] w-[8] rounded-full mt-[6] {{ $alert['severity'] === 'critical' ? 'bg-theme-destructive' : ($alert['severity'] === 'warning' ? 'bg-theme-accent' : 'bg-theme-primary') }}" />
                     <column class="flex-1 gap-1">
-                        <row class="items-center gap-2">
-                            <badge
-                                label="{{ $alert['severity'] === 'critical' ? 'Critique' : ($alert['severity'] === 'warning' ? 'Attention' : 'Info') }}"
-                                variant="{{ $alert['severity'] === 'critical' ? 'destructive' : ($alert['severity'] === 'warning' ? 'accent' : 'primary') }}"
-                            />
-                            <text class="text-xs text-theme-on-surface-variant">{{ $alert['type_label'] ?? '' }}</text>
-                        </row>
                         <text ref="alert-{{ $alert['id'] }}-title" class="text-sm font-semibold text-theme-on-surface">{{ $alert['title'] }}</text>
                         <text class="text-sm text-theme-on-surface-variant">{{ $alert['message'] }}</text>
                         <text class="text-xs text-theme-on-surface-variant">
-                            {{ \Carbon\Carbon::parse($alert['created_at'])->format('d/m/Y H:i') }}
+                            {{ \Carbon\Carbon::parse($alert['created_at'])->format('d/m/Y H:i') }} · {{ $alert['type_label'] ?? '' }}
                             @if ($alert['is_sent'] ?? false)
                                 · notifié
                             @endif
