@@ -199,11 +199,11 @@ it('does not group recommendations under headings', function () {
         ->assertMissingElement('text', fn (array $n): bool => str_starts_with($n['ref'] ?? '', 'reco-group-'));
 });
 
-it('shows a priority badge colored by priority', function () {
+it('shows a priority badge colored by priority, using the same label vocabulary as the filter chips (not priority_label)', function () {
     fakeRecommendationsOpenEndpoints(recommendations: [
-        sampleRecommendation(['id' => 1, 'priority' => 'high', 'priority_label' => 'Haute']),
-        sampleRecommendation(['id' => 2, 'priority' => 'medium', 'priority_label' => 'Moyenne']),
-        sampleRecommendation(['id' => 3, 'priority' => 'low', 'priority_label' => 'Basse']),
+        sampleRecommendation(['id' => 1, 'priority' => 'high', 'priority_label' => 'Urgent']),
+        sampleRecommendation(['id' => 2, 'priority' => 'medium', 'priority_label' => 'Recommandé']),
+        sampleRecommendation(['id' => 3, 'priority' => 'low', 'priority_label' => 'Suggestion']),
     ]);
 
     $tree = Native::test(RecommendationsOpenTab::class)->tree();
@@ -215,7 +215,9 @@ it('shows a priority badge colored by priority', function () {
     expect($high['props']['variant'] ?? null)->toBe('destructive');
     expect($high['props']['label'] ?? null)->toBe('Haute');
     expect($medium['props']['variant'] ?? null)->toBe('accent');
+    expect($medium['props']['label'] ?? null)->toBe('Moyenne');
     expect($low['props']['variant'] ?? null)->toBe('primary');
+    expect($low['props']['label'] ?? null)->toBe('Basse');
 });
 
 it('shows the type label and freshness label next to the priority badge', function () {

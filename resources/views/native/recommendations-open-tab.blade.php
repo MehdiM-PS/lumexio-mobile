@@ -30,7 +30,7 @@
                     <row class="w-full items-center gap-2">
                         <badge
                             ref="reco-{{ $rec['id'] }}-priority-badge"
-                            label="{{ $rec['priority_label'] }}"
+                            label="{{ $rec['priority'] === 'high' ? 'Haute' : ($rec['priority'] === 'medium' ? 'Moyenne' : 'Basse') }}"
                             variant="{{ $rec['priority'] === 'high' ? 'destructive' : ($rec['priority'] === 'medium' ? 'accent' : 'primary') }}"
                         />
                         <text class="flex-1 text-xs text-theme-on-surface-variant">{{ $rec['type_label'] }} · {{ $rec['freshness_label'] }}</text>
