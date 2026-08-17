@@ -76,13 +76,28 @@ it('shows the comparison table by default (compareEnabled starts true)', functio
         ->assertSee('79 800,00 €');
 });
 
+it('gives the comparison table columns a flex weight so they align across rows', function () {
+    // Guards against a regression to an unsupported arbitrary-value class
+    // (e.g. `flex-[1.3]`, which EDGE's TailwindParser does not parse —
+    // verified via TailwindParser::parse(), which silently drops it and
+    // returns no flexGrow at all). Without a real flexGrow on each column,
+    // the three "columns" land at different x-positions on every row
+    // instead of aligning as a table.
+    fakeSalesEndpoints();
+
+    $tree = Native::test(Sales::class)->tree();
+    $label = findNodeByRef($tree, 'sales-compare-header-label');
+
+    expect($label)->not->toBeNull();
+    expect($label['layout']['flex_grow'] ?? null)->toBe(1.0);
+});
+
 it('hides the comparison table when the compare toggle is off', function () {
     fakeSalesEndpoints();
 
-    $screen = Native::test(Sales::class);
-    $screen->set('compareEnabled', false);
-
-    $screen->assertDontSee('Actuelle vs période -1');
+    Native::test(Sales::class)
+        ->toggle('sales-compare-toggle', false)
+        ->assertDontSee('Actuelle vs période -1');
 });
 
 it('shows the category breakdown rows', function () {
@@ -153,6 +168,27 @@ it('renders the CA chart bars with an absolute pixel height proportional to thei
     expect($bar2['layout']['height'] ?? null)->toBe(90.0);
 });
 
+it('renders the basket chart bars with an absolute pixel height proportional to their value', function () {
+    // Mirrors the CA chart bar-height test above, but for the Panier moyen
+    // chart: fake charts.avg_cart.avgCart is [50.0, 60.0, 70.0] (3 items, no
+    // bucketizing). Container height is 70px (matches the row's h-[70] class
+    // in the blade), so bar 0 (50/70 of max) => round(70*50/70) = 50px, and
+    // the max-value bar (index 2) => the full 70px. This is the only test
+    // covering the avgCart field, which is camelCase unlike its sibling
+    // `revenue` — a typo there would leave every other test green.
+    fakeSalesEndpoints(['charts' => ['avg_cart' => ['labels' => ['S1', 'S2', 'S3'], 'avgCart' => [50.0, 60.0, 70.0], 'groupBy' => 'daily']]]);
+
+    $tree = Native::test(Sales::class)->tree();
+
+    $bar0 = findNodeByRef($tree, 'sales-basket-bar-0');
+    $bar2 = findNodeByRef($tree, 'sales-basket-bar-2');
+
+    expect($bar0)->not->toBeNull();
+    expect($bar2)->not->toBeNull();
+    expect($bar0['layout']['height'] ?? null)->toBe(50.0);
+    expect($bar2['layout']['height'] ?? null)->toBe(70.0);
+});
+
 it('renders the category breakdown fill with a percentage width', function () {
     // Default fixture: category_breakdown[0].pct is 38. Proves the fill
     // renders as a raw `width` attribute carrying a percentage string (a
@@ -201,6 +237,35 @@ it('floors the category fill width at a non-zero percentage when pct is zero', f
 
     expect($width)->not->toBe('0%');
     expect((float) rtrim((string) $width, '%'))->toBeGreaterThan(0);
+});
+
+it('shows empty states for category breakdown and top products when both are empty', function () {
+    // fakeSalesEndpoints()'s override merging uses array_replace_recursive,
+    // which does NOT clear a list when the override value is []: recursing
+    // into an empty override array leaves the base array's entries
+    // untouched (verified — array_replace_recursive($defaults, ['top_products' => []])
+    // keeps the default products). So the empty-array case is faked
+    // directly here instead of going through the helper's override param.
+    Http::fake([
+        '*/auth/me' => Http::response(['user' => ['name' => 'Test User', 'email' => 'test@example.com']]),
+        '*/revenue*' => Http::response([
+            'metrics' => [
+                'current' => ['revenue' => 89400.0, 'orders' => 612, 'avg_order' => 146.0, 'new_customers' => 89],
+                'previous' => ['revenue' => 79800.0, 'orders' => 567, 'avg_order' => 141.0, 'new_customers' => 77],
+                'changes' => ['revenue' => 12.0, 'orders' => 8.0, 'avg_order' => 3.0, 'new_customers' => 15.0],
+            ],
+            'top_products' => [],
+            'charts' => [
+                'revenue_margin' => ['labels' => ['S1', 'S2', 'S3'], 'revenue' => [100.0, 200.0, 300.0], 'margin' => [10.0, 20.0, 30.0]],
+                'avg_cart' => ['labels' => ['S1', 'S2', 'S3'], 'avgCart' => [50.0, 60.0, 70.0], 'groupBy' => 'daily'],
+                'category_breakdown' => [],
+            ],
+        ], 200),
+    ]);
+
+    Native::test(Sales::class)
+        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'sales-category-empty')
+        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'sales-products-empty');
 });
 
 it('shows a generic error instead of crashing on failure', function () {
