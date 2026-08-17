@@ -8,7 +8,7 @@
 
         <column class="w-full gap-2">
             @forelse ($recommendations as $rec)
-                <column class="w-full gap-2 rounded-lg bg-theme-surface-variant p-4">
+                <column class="w-full gap-2 rounded-lg border border-theme-outline bg-theme-surface p-4">
                     <row class="w-full justify-between">
                         <text class="text-sm font-semibold text-theme-on-surface">{{ $rec['title'] }}</text>
                         @if ($rec['actioned_status'] === 'resolved')

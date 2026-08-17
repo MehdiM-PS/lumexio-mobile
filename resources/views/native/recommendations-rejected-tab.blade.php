@@ -8,7 +8,7 @@
 
         <column class="w-full gap-2">
             @forelse ($recommendations as $rec)
-                <column class="w-full gap-2 rounded-lg bg-theme-surface-variant p-4">
+                <column class="w-full gap-2 rounded-lg border border-theme-outline bg-theme-surface p-4">
                     <text ref="reco-{{ $rec['id'] }}-title" class="text-sm font-semibold text-theme-on-surface">{{ $rec['title'] }}</text>
                     <text class="text-sm text-theme-on-surface-variant">{{ $rec['description'] }}</text>
                     <button ref="reco-{{ $rec['id'] }}-unreject" variant="secondary" @press="unreject({{ $rec['id'] }})">Restaurer</button>
