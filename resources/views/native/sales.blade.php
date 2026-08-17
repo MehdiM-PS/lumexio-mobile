@@ -10,7 +10,7 @@
         <text class="text-xs text-theme-on-surface-variant">{{ $this->periodLabel() }}</text>
 
         <scroll-view horizontal class="gap-2">
-            @foreach (['today' => "Aujourd'hui", 'yesterday' => 'Hier', 'week' => 'Cette sem.', 'last_week' => 'Sem. préc.', 'month' => 'Ce mois', 'last_month' => 'Mois préc.', 'year' => 'Cette année', 'last_year' => 'An. préc.'] as $key => $label)
+            @foreach ($this->periodOptions() as $key => $label)
                 <chip ref="sales-period-{{ $key }}" label="{{ $label }}" :selected="$salesPeriod === '{{ $key }}'" @change="setSalesPeriod('{{ $key }}')" />
             @endforeach
         </scroll-view>
@@ -79,14 +79,14 @@
         <text class="text-base font-semibold text-theme-on-background mt-[10]">Évolution du CA</text>
         <row class="w-full items-end gap-[6] h-[90] rounded-lg border border-theme-outline bg-theme-surface p-[14]">
             @foreach ($caChart['values'] as $i => $value)
-                <column ref="sales-ca-bar-{{ $i }}" class="flex-1 rounded-t bg-theme-primary" style="height:{{ $this->barHeightPercent($caChart, $i) }}%" />
+                <column ref="sales-ca-bar-{{ $i }}" class="flex-1 rounded-t bg-theme-primary" height="{{ $this->barHeightPx($caChart, $i, 90) }}" />
             @endforeach
         </row>
 
         <text class="text-base font-semibold text-theme-on-background mt-[10]">Panier moyen</text>
         <row class="w-full items-end gap-[6] h-[70] rounded-lg border border-theme-outline bg-theme-surface p-[14]">
             @foreach ($basketChart['values'] as $i => $value)
-                <column ref="sales-basket-bar-{{ $i }}" class="flex-1 rounded-t bg-[#c9a97a]" style="height:{{ $this->barHeightPercent($basketChart, $i) }}%" />
+                <column ref="sales-basket-bar-{{ $i }}" class="flex-1 rounded-t bg-[#c9a97a]" height="{{ $this->barHeightPx($basketChart, $i, 70) }}" />
             @endforeach
         </row>
 
@@ -99,7 +99,7 @@
                         <text class="text-sm font-semibold text-theme-on-surface">{{ number_format($cat['amount'], 2, ',', ' ') }} € · {{ $cat['pct'] }}%</text>
                     </row>
                     <row class="w-full h-[6] rounded-full bg-theme-surface-variant">
-                        <column class="h-full rounded-full bg-theme-primary" style="width:{{ $cat['pct'] }}%" />
+                        <column ref="sales-category-fill-{{ $loop->index }}" class="h-full rounded-full bg-theme-primary" width="{{ $cat['pct'] }}%" />
                     </row>
                 </column>
             @empty

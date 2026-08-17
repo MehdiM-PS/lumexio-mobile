@@ -128,6 +128,46 @@ it('passes a short chart series through unchanged', function () {
     expect($bucketed['values'])->toBe([100.0, 200.0, 300.0]);
 });
 
+it('renders the CA chart bars with an absolute pixel height proportional to their value', function () {
+    // Default fixture: revenue_margin values are [100.0, 200.0, 300.0] (3
+    // items, no bucketizing). Container height is 90px (matches the row's
+    // h-[90] class in the blade), so bar 0 (100/300 of max) => round(90/3) =
+    // 30px, and the max-value bar (index 2) => the full 90px. Proves the
+    // bar renders as a raw `height` attribute (an absolute pixel value in
+    // the resolved layout), not the framework-inert `style="height:...%"`
+    // the brief originally specified.
+    fakeSalesEndpoints();
+
+    $tree = Native::test(Sales::class)->tree();
+
+    $bar0 = findNodeByRef($tree, 'sales-ca-bar-0');
+    $bar2 = findNodeByRef($tree, 'sales-ca-bar-2');
+
+    expect($bar0)->not->toBeNull();
+    expect($bar2)->not->toBeNull();
+    // The `height` attribute is coerced to float somewhere in the Blade
+    // attribute pipeline before it reaches the resolved layout (unrelated
+    // to barHeightPx()'s own int return type) — assert the float it
+    // actually carries rather than the PHP-side int.
+    expect($bar0['layout']['height'] ?? null)->toBe(30.0);
+    expect($bar2['layout']['height'] ?? null)->toBe(90.0);
+});
+
+it('renders the category breakdown fill with a percentage width', function () {
+    // Default fixture: category_breakdown[0].pct is 38. Proves the fill
+    // renders as a raw `width` attribute carrying a percentage string (a
+    // renderer-supported route, unlike `style="width:...%"`), not merely
+    // baked into a class the wire tree can't be asserted against.
+    fakeSalesEndpoints();
+
+    $tree = Native::test(Sales::class)->tree();
+
+    $fill = findNodeByRef($tree, 'sales-category-fill-0');
+
+    expect($fill)->not->toBeNull();
+    expect($fill['layout']['width'] ?? null)->toBe('38%');
+});
+
 it('shows a generic error instead of crashing on failure', function () {
     fakeSalesEndpoints(error: 'boom');
 

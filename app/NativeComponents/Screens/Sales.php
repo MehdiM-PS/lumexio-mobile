@@ -76,7 +76,29 @@ class Sales extends NativeComponent
         return self::PERIOD_LABELS[$this->salesPeriod] ?? '';
     }
 
-    public function barHeightPercent(array $chart, int $index): int
+    /**
+     * Exposes PERIOD_LABELS to the view so the period-picker's chip loop
+     * doesn't maintain a second, independently-edited copy of the same map.
+     *
+     * @return array<string, string>
+     */
+    public function periodOptions(): array
+    {
+        return self::PERIOD_LABELS;
+    }
+
+    /**
+     * Absolute pixel bar height, not a percentage: EDGE's `height` attribute
+     * (unlike `width`, which also accepts a Tailwind-fraction-style percentage
+     * string) is read raw by NativeElementCollector::buildLayoutArray() with no
+     * percentage support, and `style="height:...%"` is never read at all (no
+     * renderer path parses a raw `style` attribute) — so a percentage here
+     * would render as either a nonsensical literal or nothing. $containerHeight
+     * is the caller's known fixed pixel height for the chart row it's scaling
+     * against (matches ItemDetail::barHeight()'s same absolute-pixel approach
+     * for the stock-history chart).
+     */
+    public function barHeightPx(array $chart, int $index, int $containerHeight): int
     {
         $values = $chart['values'] ?? [];
         $max = empty($values) ? 0 : max($values);
@@ -85,7 +107,7 @@ class Sales extends NativeComponent
             return 0;
         }
 
-        return (int) round((($values[$index] ?? 0) / $max) * 100);
+        return (int) round((($values[$index] ?? 0) / $max) * $containerHeight);
     }
 
     private function bucketize(array $labels, array $values, int $maxBars = 8): array
