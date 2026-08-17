@@ -72,7 +72,9 @@
 
         <row class="w-full justify-between items-baseline">
             <text class="text-base font-semibold text-theme-on-background">Alertes récentes</text>
-            <text ref="dashboard-alerts-see-all" class="text-sm font-semibold text-theme-primary" @press="goAlerts">Tout voir</text>
+            <pressable ref="dashboard-alerts-see-all" @press="goAlerts">
+                <text class="text-sm font-semibold text-theme-primary">Tout voir</text>
+            </pressable>
         </row>
         <column class="w-full gap-2">
             @forelse ($recentAlerts as $alert)

@@ -355,6 +355,22 @@ it('navigates to the alerts tab from "Tout voir"', function () {
     $screen->assertNavigatedTo('/alerts');
 });
 
+it('wires the "Tout voir" pressable to goAlerts', function () {
+    // Element::toArray() registers `@press`'s pressMethod as a top-level
+    // `on_press` field regardless of whether the element type actually
+    // reads it (the same trap documented for the now-deleted chart-bar
+    // `@press`/selectBar tests) — so this only proves something if the id
+    // is compared against the exact registered callback, not just isset().
+    // Neither this file's other goAlerts() tests nor the header bell's own
+    // test ever touch this specific element, so a broken/misspelled @press
+    // binding on dashboard-alerts-see-all would otherwise go undetected.
+    fakeDashboardEndpoints();
+
+    Native::visit('/dashboard')
+        ->assertElement('pressable', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-alerts-see-all'
+            && ($n['on_press'] ?? null) === callbackIdFor('goAlerts'));
+});
+
 it('shows a generic error instead of crashing when the forecasts endpoint returns a 500', function () {
     Http::fake([
         '*/auth/me*' => Http::response(['user' => ['name' => 'Test User', 'email' => 'test@example.test']], 200),
