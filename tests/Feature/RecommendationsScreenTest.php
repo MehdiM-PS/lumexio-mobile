@@ -19,9 +19,9 @@ it('shows the tab bar with a Recommendations tab', function () {
     fakeRecommendationsScreenEndpoints();
 
     Native::visit('/recommendations')
-        ->assertHasTab('Dashboard')
-        ->assertHasTab('Recommandations')
-        ->assertTabActive('Recommandations');
+        ->assertHasTab('Accueil')
+        ->assertHasTab('Reco')
+        ->assertTabActive('Reco');
 });
 
 it('shows the inner tab-row with three tabs', function () {

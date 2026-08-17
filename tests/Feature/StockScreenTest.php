@@ -3,7 +3,13 @@
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 
-it('shows the tab bar with a Stock tab', function () {
+// The 5-tab bar no longer has a Stock entry (TabsLayout was restructured to
+// Accueil/Prévisions/Ventes/Reco/Alertes) — /stock stays in TabsLayout's
+// nativeGroup and still gets the shared chrome, but with no tab of its own,
+// so no tab highlights as active while it's on screen. Pending a later task
+// in this SDD plan folding Stock's content into one of the 5 new tabs (or
+// dropping it from the group).
+it('shows the shared tab bar, with no tab of its own', function () {
     Http::fake([
         '*/alerts/stock-overview*' => Http::response(['stats' => ['total' => 0, 'low_stock' => 0, 'out_of_stock' => 0], 'valuation' => ['total_value' => 0, 'total_quantity' => 0]], 200),
         '*/alerts*' => Http::response(['alerts' => [], 'pagination' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 50, 'total' => 0]], 200),
@@ -12,9 +18,8 @@ it('shows the tab bar with a Stock tab', function () {
     ]);
 
     Native::visit('/stock')
-        ->assertHasTab('Dashboard')
-        ->assertHasTab('Stock')
-        ->assertTabActive('Stock');
+        ->assertHasTab('Accueil')
+        ->assertMissingElement('bottom_nav_item', fn (array $n): bool => ($n['props']['label'] ?? null) === 'Stock');
 });
 
 it('shows the products tab by default and switches to alerts', function () {

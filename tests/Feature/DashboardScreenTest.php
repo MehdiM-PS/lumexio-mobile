@@ -75,8 +75,8 @@ it('shows the dashboard tab bar and KPI data', function () {
     fakeDashboardEndpoints();
 
     Native::visit('/dashboard')
-        ->assertHasTab('Dashboard')
-        ->assertTabActive('Dashboard')
+        ->assertHasTab('Accueil')
+        ->assertTabActive('Accueil')
         ->assertSee('8 450') // revenue_period, formatted
         ->assertSee('96') // orders_period
         ->assertSee('312') // customers_count
