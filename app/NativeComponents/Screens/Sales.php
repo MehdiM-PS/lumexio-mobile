@@ -97,6 +97,13 @@ class Sales extends NativeComponent
      * is the caller's known fixed pixel height for the chart row it's scaling
      * against (matches ItemDetail::barHeight()'s same absolute-pixel approach
      * for the stock-history chart).
+     *
+     * Floors at 4px (matching ItemDetail::barHeight()'s own floor) rather than
+     * returning 0: both native height modifiers (iOS's NodeLayoutModifier,
+     * Android's NodeView) guard on `height > 0` — a literal 0 doesn't collapse
+     * the bar, it drops the height constraint entirely, letting the bar grow
+     * unbounded. A 4px floor renders a deliberate, barely-visible sliver
+     * instead.
      */
     public function barHeightPx(array $chart, int $index, int $containerHeight): int
     {
@@ -104,10 +111,10 @@ class Sales extends NativeComponent
         $max = empty($values) ? 0 : max($values);
 
         if ($max <= 0) {
-            return 0;
+            return 4;
         }
 
-        return (int) round((($values[$index] ?? 0) / $max) * $containerHeight);
+        return max(4, (int) round((($values[$index] ?? 0) / $max) * $containerHeight));
     }
 
     private function bucketize(array $labels, array $values, int $maxBars = 8): array

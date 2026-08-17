@@ -168,6 +168,41 @@ it('renders the category breakdown fill with a percentage width', function () {
     expect($fill['layout']['width'] ?? null)->toBe('38%');
 });
 
+it('floors chart bars at a non-zero pixel height when every value is zero', function () {
+    // A shop with zero revenue for the selected period returns an all-zero
+    // series. barHeightPx()'s $max <= 0 branch must not return a literal 0:
+    // both native height modifiers (iOS NodeLayoutModifier, Android NodeView)
+    // guard on `height > 0` and skip applying the constraint entirely when
+    // it's 0, so every bar would grow unbounded instead of collapsing —
+    // worse than invisible. A floored value (>0) keeps the height
+    // constraint applied on both platforms.
+    fakeSalesEndpoints(['charts' => ['revenue_margin' => ['labels' => ['S1', 'S2', 'S3'], 'revenue' => [0.0, 0.0, 0.0], 'margin' => [0.0, 0.0, 0.0]]]]);
+
+    $tree = Native::test(Sales::class)->tree();
+    $bar0 = findNodeByRef($tree, 'sales-ca-bar-0');
+
+    expect($bar0)->not->toBeNull();
+    expect($bar0['layout']['height'] ?? null)->toBeGreaterThan(0);
+});
+
+it('floors the category fill width at a non-zero percentage when pct is zero', function () {
+    // Same >0 guard applies to the width-percent branch — a literal "0%"
+    // would drop the width constraint entirely rather than rendering an
+    // empty fill.
+    fakeSalesEndpoints(['charts' => ['category_breakdown' => [
+        ['label' => 'Accessoires', 'amount' => 0.0, 'pct' => 0],
+    ]]]);
+
+    $tree = Native::test(Sales::class)->tree();
+    $fill = findNodeByRef($tree, 'sales-category-fill-0');
+
+    expect($fill)->not->toBeNull();
+    $width = $fill['layout']['width'] ?? null;
+
+    expect($width)->not->toBe('0%');
+    expect((float) rtrim((string) $width, '%'))->toBeGreaterThan(0);
+});
+
 it('shows a generic error instead of crashing on failure', function () {
     fakeSalesEndpoints(error: 'boom');
 

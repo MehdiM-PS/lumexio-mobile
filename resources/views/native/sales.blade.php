@@ -77,18 +77,22 @@
         @endif
 
         <text class="text-base font-semibold text-theme-on-background mt-[10]">Évolution du CA</text>
-        <row class="w-full items-end gap-[6] h-[90] rounded-lg border border-theme-outline bg-theme-surface p-[14]">
-            @foreach ($caChart['values'] as $i => $value)
-                <column ref="sales-ca-bar-{{ $i }}" class="flex-1 rounded-t bg-theme-primary" height="{{ $this->barHeightPx($caChart, $i, 90) }}" />
-            @endforeach
-        </row>
+        <column class="w-full rounded-lg border border-theme-outline bg-theme-surface p-[14]">
+            <row class="w-full items-end gap-[6] h-[90]">
+                @foreach ($caChart['values'] as $i => $value)
+                    <column ref="sales-ca-bar-{{ $i }}" class="flex-1 rounded-t bg-theme-primary" height="{{ $this->barHeightPx($caChart, $i, 90) }}" />
+                @endforeach
+            </row>
+        </column>
 
         <text class="text-base font-semibold text-theme-on-background mt-[10]">Panier moyen</text>
-        <row class="w-full items-end gap-[6] h-[70] rounded-lg border border-theme-outline bg-theme-surface p-[14]">
-            @foreach ($basketChart['values'] as $i => $value)
-                <column ref="sales-basket-bar-{{ $i }}" class="flex-1 rounded-t bg-[#c9a97a]" height="{{ $this->barHeightPx($basketChart, $i, 70) }}" />
-            @endforeach
-        </row>
+        <column class="w-full rounded-lg border border-theme-outline bg-theme-surface p-[14]">
+            <row class="w-full items-end gap-[6] h-[70]">
+                @foreach ($basketChart['values'] as $i => $value)
+                    <column ref="sales-basket-bar-{{ $i }}" class="flex-1 rounded-t bg-[#c9a97a]" height="{{ $this->barHeightPx($basketChart, $i, 70) }}" />
+                @endforeach
+            </row>
+        </column>
 
         <text class="text-base font-semibold text-theme-on-background mt-[10]">CA par catégorie</text>
         <column class="w-full gap-2">
@@ -99,7 +103,10 @@
                         <text class="text-sm font-semibold text-theme-on-surface">{{ number_format($cat['amount'], 2, ',', ' ') }} € · {{ $cat['pct'] }}%</text>
                     </row>
                     <row class="w-full h-[6] rounded-full bg-theme-surface-variant">
-                        <column ref="sales-category-fill-{{ $loop->index }}" class="h-full rounded-full bg-theme-primary" width="{{ $cat['pct'] }}%" />
+                        {{-- max(2, ...): the width-percent branch is also >0-guarded natively
+                             (see barHeightPx()'s docblock) — a literal 0% would drop the width
+                             constraint entirely rather than rendering an empty fill. --}}
+                        <column ref="sales-category-fill-{{ $loop->index }}" class="h-full rounded-full bg-theme-primary" width="{{ max(2, $cat['pct']) }}%" />
                     </row>
                 </column>
             @empty
