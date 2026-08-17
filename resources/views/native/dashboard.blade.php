@@ -129,8 +129,6 @@
             </canvas>
         @endif
 
-        <native:forecast-section />
-
         <text class="text-base font-semibold text-theme-on-background">Commandes récentes</text>
         <column class="w-full gap-2">
             @forelse ($recentOrders as $order)

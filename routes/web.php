@@ -4,6 +4,7 @@ use App\NativeComponents\Layouts\TabsLayout;
 use App\NativeComponents\Screens\Alerts;
 use App\NativeComponents\Screens\Boot;
 use App\NativeComponents\Screens\Dashboard;
+use App\NativeComponents\Screens\Forecasts;
 use App\NativeComponents\Screens\ItemDetail;
 use App\NativeComponents\Screens\Login;
 use App\NativeComponents\Screens\OrderDetail;
@@ -26,6 +27,7 @@ Route::native('/suppliers/{id}', SupplierForm::class);
 
 Route::nativeGroup(TabsLayout::class, function () {
     Route::native('/dashboard', Dashboard::class);
+    Route::native('/forecasts', Forecasts::class);
     Route::native('/stock', Stock::class);
     Route::native('/orders', Orders::class);
     Route::native('/recommendations', Recommendations::class);

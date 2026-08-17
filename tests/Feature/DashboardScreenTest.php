@@ -55,16 +55,6 @@ function fakeDashboardEndpoints(array $shops = [], ?array $widgets = null, ?arra
                 ['product_id' => 7, 'name' => 'Chaise design', 'image_url' => 'https://example.test/chaise.jpg', 'category' => 'Mobilier', 'quantity' => 4, 'revenue' => 199.99],
             ],
         ], 200),
-        '*/forecasts*' => Http::response([
-            'historical' => [
-                ['date' => '2026-08-01', 'revenue' => 100.0],
-                ['date' => '2026-08-02', 'revenue' => 150.0],
-            ],
-            'forecasts' => [
-                ['forecast_date' => '2026-08-15', 'predicted_revenue' => 200.0, 'confidence_score' => 85],
-            ],
-            'summary' => ['forecast_7d' => 1200.0, 'forecast_30d' => 5000.0, 'historical_7d' => 1100.0, 'historical_30d' => 4800.0, 'trend' => 'up', 'confidence' => 82],
-        ], 200),
         '*/shops*' => Http::response(['shops' => $shops ?: [
             ['id' => 'shop-1', 'name' => 'Ma Boutique', 'sync_status' => 'idle', 'sync_error' => null],
         ]], 200),
@@ -82,12 +72,7 @@ it('shows the dashboard tab bar and KPI data', function () {
         ->assertSee('312') // customers_count
         ->assertSee('Jean Dupont')
         ->assertSee('T-shirt bleu')
-        ->assertElement('rect')
-        // The embedded <native:forecast-section /> reads summary.confidence
-        // from the real GET /forecasts shape (see fakeDashboardEndpoints'
-        // '*/forecasts*' fixture) — asserts real data renders, not the "0%"
-        // that a mismatched fixture shape would silently degrade to.
-        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-confidence' && str_contains($n['props']['text'] ?? '', '82'));
+        ->assertElement('rect');
 });
 
 it('refetches data on pull-to-refresh', function () {
@@ -95,7 +80,7 @@ it('refetches data on pull-to-refresh', function () {
 
     Native::visit('/dashboard')->call('refresh');
 
-    Http::assertSentCount(17); // 8 dashboard (incl. auth/me) + 1 forecast on mount, 8 dashboard on refresh (forecast doesn't refresh automatically)
+    Http::assertSentCount(16); // 8 dashboard (incl. auth/me) on mount, 8 dashboard on refresh — forecasts now live on their own /forecasts screen (Task 7), not embedded here.
 });
 
 it('is fully accessible', function () {

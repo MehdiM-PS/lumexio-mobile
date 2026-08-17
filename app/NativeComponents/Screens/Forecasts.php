@@ -1,15 +1,17 @@
 <?php
 
-namespace App\NativeComponents;
+namespace App\NativeComponents\Screens;
 
 use App\NativeComponents\Concerns\HandlesApiErrors;
+use App\NativeComponents\Concerns\HasHeaderChrome;
 use App\Services\LumexioApi;
 use Illuminate\View\View;
 use Native\Mobile\Edge\NativeComponent;
 
-class ForecastSection extends NativeComponent
+class Forecasts extends NativeComponent
 {
     use HandlesApiErrors;
+    use HasHeaderChrome;
 
     public array $historical = [];
 
@@ -44,6 +46,8 @@ class ForecastSection extends NativeComponent
         $this->historical = $data['historical'] ?? [];
         $this->forecasts = $data['forecasts'] ?? [];
         $this->summary = $data['summary'] ?? [];
+
+        $this->loadCurrentUser();
     }
 
     public function updatedProductSearch(): void
@@ -84,9 +88,9 @@ class ForecastSection extends NativeComponent
 
     /**
      * Combined, date-sorted series: the last 14 historical days plus the
-     * next 7 forecast days (per spec Decision 4 — the API returns a wider
-     * 30-day historical window, sliced client-side to keep the chart
-     * readable on a phone width).
+     * next 7 forecast days (kept from the retired ForecastSection — the
+     * API returns a wider 30-day historical window, sliced client-side
+     * to keep the chart readable on a phone width).
      *
      * @return list<array{date: string, revenue: float, type: 'historical'|'forecast', confidence: int|null}>
      */
@@ -155,6 +159,6 @@ class ForecastSection extends NativeComponent
 
     public function render(): View
     {
-        return view('native.forecast-section');
+        return view('native.forecasts');
     }
 }

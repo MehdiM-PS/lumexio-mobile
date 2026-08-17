@@ -9,8 +9,7 @@ use Native\Mobile\Testing\Native;
 
 /**
  * Mirrors DashboardScreenTest's fixture shapes (Dashboard::refresh() hits
- * all of these, plus the embedded <native:forecast-section /> hits
- * `/forecasts`) rather than reusing that file's global helper, so this
+ * all of these) rather than reusing that file's global helper, so this
  * test file's fixtures don't silently depend on another test file having
  * been loaded first.
  */
@@ -30,11 +29,6 @@ function fakeTabsLayoutEndpoints(): void
         '*/dashboard/low-stock*' => Http::response(['products' => []], 200),
         '*/dashboard/widgets*' => Http::response(['widgets' => null], 200),
         '*/dashboard/top-products*' => Http::response(['day' => 'today', 'date' => today()->toDateString(), 'products' => []], 200),
-        '*/forecasts*' => Http::response([
-            'historical' => [],
-            'forecasts' => [],
-            'summary' => ['forecast_7d' => 0, 'forecast_30d' => 0, 'historical_7d' => 0, 'historical_30d' => 0, 'trend' => 'flat', 'confidence' => 0],
-        ], 200),
         '*/shops*' => Http::response(['shops' => []], 200),
     ]);
 }

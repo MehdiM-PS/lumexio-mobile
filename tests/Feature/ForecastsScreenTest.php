@@ -1,18 +1,32 @@
 <?php
 
-use App\NativeComponents\ForecastSection;
+use App\NativeComponents\Screens\Forecasts;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 
+// Fakes '*/auth/me*' too (unlike the retired ForecastSectionTest's version
+// of this helper): Forecasts::refresh() calls loadCurrentUser() — a call
+// the old embedded ForecastSection never made (HasHeaderChrome is new to
+// this screen). Left unfaked, /auth/me falls through unmatched and throws,
+// which callApi() catches and writes into $lastApiError — silently
+// clobbering whatever the /forecasts stub below produced and making the
+// "shows a generic error instead of crashing on failure" test pass for the
+// wrong reason (an ambient /auth/me failure, not the /forecasts 500 it's
+// meant to exercise). Faked in the $error branch too, so that branch's 500
+// stays isolated to /forecasts.
 function fakeForecastsEndpoint(array $historical = [], array $forecasts = [], ?array $summary = null, ?string $error = null): void
 {
     if ($error !== null) {
-        Http::fake(['*/forecasts*' => Http::response(['message' => $error], 500)]);
+        Http::fake([
+            '*/auth/me*' => Http::response(['user' => ['name' => 'Test User', 'email' => 'test@example.test']], 200),
+            '*/forecasts*' => Http::response(['message' => $error], 500),
+        ]);
 
         return;
     }
 
     Http::fake([
+        '*/auth/me*' => Http::response(['user' => ['name' => 'Test User', 'email' => 'test@example.test']], 200),
         '*/forecasts*' => Http::response([
             'forecasts' => $forecasts,
             'historical' => $historical,
@@ -45,7 +59,7 @@ function sampleForecastDay(array $overrides = []): array
 it('fetches the shop-level forecast and historical data on mount', function () {
     fakeForecastsEndpoint(historical: [sampleHistoricalDay()], forecasts: [sampleForecastDay()], summary: ['forecast_7d' => 500.0, 'forecast_30d' => 2000.0, 'historical_7d' => 400.0, 'historical_30d' => 1800.0, 'trend' => 'up', 'confidence' => 82]);
 
-    Native::test(ForecastSection::class)
+    Native::test(Forecasts::class)
         ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-confidence' && str_contains($n['props']['text'] ?? '', '82'));
 
     Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/forecasts') && ! isset($request['product_id']));
@@ -61,7 +75,7 @@ it('fetches the shop-level forecast and historical data on mount', function () {
 it('renders a bar per historical and forecast day, with distinct colors for historical vs forecast', function () {
     fakeForecastsEndpoint(historical: [sampleHistoricalDay(['date' => today()->format('Y-m-d')])], forecasts: [sampleForecastDay(['forecast_date' => today()->addDay()->format('Y-m-d')])]);
 
-    $tree = Native::test(ForecastSection::class)->tree();
+    $tree = Native::test(Forecasts::class)->tree();
 
     $bar0 = findNodeByRef($tree, 'forecast-bar-0');
     $bar1 = findNodeByRef($tree, 'forecast-bar-1');
@@ -80,7 +94,7 @@ it('renders a bar per historical and forecast day, with distinct colors for hist
 it('selects a bar via the real binding and shows a Réalisé/Prévu readout', function () {
     fakeForecastsEndpoint(historical: [sampleHistoricalDay(['revenue' => 88.5])], forecasts: []);
 
-    $screen = Native::test(ForecastSection::class)
+    $screen = Native::test(Forecasts::class)
         ->assertElement('rect', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-bar-0' && ($n['on_press'] ?? null) === callbackIdFor('selectBar(0)'));
 
     $screen->call('selectBar', 0);
@@ -97,7 +111,7 @@ it('searches products via the real debounced binding and shows results', functio
     fakeForecastsEndpoint();
     Http::fake(['*/products?search=*' => Http::response(['products' => [['id' => 5, 'name' => 'T-shirt bleu', 'reference' => 'TS-BLUE']]], 200)]);
 
-    $screen = Native::test(ForecastSection::class)
+    $screen = Native::test(Forecasts::class)
         ->assertElement('outlined_text_input', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-product-search' && ($n['props']['on_change'] ?? null) === callbackIdFor("__syncProperty('productSearch')"));
 
     $screen->set('productSearch', 'bleu');
@@ -113,7 +127,7 @@ it('selects a product via the real binding, refetches, and shows a clear button'
     fakeForecastsEndpoint(); // covers both the initial shop-level fetch and the product-scoped refetch (same pattern)
     Http::fake(['*/products?search=*' => Http::response(['products' => [['id' => 5, 'name' => 'T-shirt bleu', 'reference' => 'TS-BLUE']]], 200)]);
 
-    $screen = Native::test(ForecastSection::class);
+    $screen = Native::test(Forecasts::class);
     $screen->set('productSearch', 'bleu');
     $screen->assertElement('pressable', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-product-result-5' && ($n['on_press'] ?? null) === callbackIdFor('selectProduct(5)'));
 
@@ -148,7 +162,7 @@ it('selects a product whose name contains an apostrophe without crashing', funct
     fakeForecastsEndpoint();
     Http::fake(['*/products?search=*' => Http::response(['products' => [['id' => 9, 'name' => "L'Oréal", 'reference' => 'LO-001']]], 200)]);
 
-    $screen = Native::test(ForecastSection::class);
+    $screen = Native::test(Forecasts::class);
     $screen->set('productSearch', 'oreal');
     $screen->assertElement('pressable', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-product-result-9' && ($n['on_press'] ?? null) === callbackIdFor('selectProduct(9)'));
 
@@ -160,7 +174,7 @@ it('selects a product whose name contains an apostrophe without crashing', funct
 it('clears the selected product via the real binding and returns to the shop-level view', function () {
     fakeForecastsEndpoint();
 
-    $screen = Native::test(ForecastSection::class);
+    $screen = Native::test(Forecasts::class);
     $screen->call('selectProduct', 5);
 
     $screen->call('clearProduct');
@@ -186,7 +200,7 @@ it("shows the selected product's confidence in the header immediately after sele
     ]);
     Http::fake(['*/products?search=*' => Http::response(['products' => [['id' => 5, 'name' => 'T-shirt bleu', 'reference' => 'TS-BLUE']]], 200)]);
 
-    $screen = Native::test(ForecastSection::class);
+    $screen = Native::test(Forecasts::class);
     $screen->call('selectProduct', 5);
 
     $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-confidence' && str_contains($n['props']['text'] ?? '', '82'));
@@ -209,7 +223,7 @@ it('slices the chart to the last 14 historical days and first 7 forecast days wh
 
     fakeForecastsEndpoint(historical: $historicalDays, forecasts: $forecastDays);
 
-    $screen = Native::test(ForecastSection::class);
+    $screen = Native::test(Forecasts::class);
     $tree = $screen->tree();
 
     // chartSeries() slices to the last 14 historical days + first 7 forecast
@@ -236,6 +250,67 @@ it('slices the chart to the last 14 historical days and first 7 forecast days wh
 it('shows a generic error instead of crashing on failure', function () {
     fakeForecastsEndpoint(error: 'boom');
 
-    Native::test(ForecastSection::class)
+    Native::test(Forecasts::class)
         ->assertElement('row', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-error');
+});
+
+// Deliberately not two separate fakeForecastsEndpoint() calls: Http::fake()
+// stubs are matched in registration order (first matching pattern wins, per
+// PendingRequest::buildStubHandler()'s ->filter()->first()), so a second
+// fakeForecastsEndpoint() call for the same '*/forecasts*' pattern would
+// never actually take effect for the refresh() call below — same trap as
+// the "opens and closes the shop switcher sheet" comment in
+// DashboardScreenTest, just hit here because both calls target the exact
+// same URL rather than a broader-then-narrower pair. A response sequence
+// (ItemDetailScreenTest's "refetches stock history on pull-to-refresh"
+// pattern) queues one response per request instead.
+it('is wrapped in a refreshable that calls refresh on pull-to-refresh', function () {
+    $baseResponse = [
+        'summary' => ['forecast_7d' => 0, 'forecast_30d' => 0, 'historical_7d' => 0, 'historical_30d' => 0, 'trend' => 'stable', 'confidence' => 0],
+        'top_product_forecasts' => [],
+        'upcoming_events' => [],
+    ];
+
+    Http::fake([
+        '*/auth/me*' => Http::response(['user' => ['name' => 'Test User', 'email' => 'test@example.test']], 200),
+        '*/forecasts*' => Http::sequence()
+            ->push([...$baseResponse, 'historical' => [sampleHistoricalDay()], 'forecasts' => [sampleForecastDay()]], 200)
+            ->push([...$baseResponse, 'historical' => [sampleHistoricalDay(['date' => today()->addDay()->format('Y-m-d')])], 'forecasts' => [sampleForecastDay()]], 200),
+    ]);
+
+    $screen = Native::test(Forecasts::class);
+    $tree = $screen->tree();
+
+    expect($tree['type'] ?? null)->toBe('refreshable');
+    // Proves @refresh="refresh" is bound to THIS method specifically —
+    // isset() alone would still pass for a typo like "refres" (see
+    // ItemDetailScreenTest's "wraps its content in a refreshable" test).
+    expect($tree['props']['on_refresh'] ?? null)->toBe(callbackIdFor('refresh'));
+
+    $screen->call('refresh');
+
+    expect($screen->get('historical')[0]['date'])->toBe(today()->addDay()->format('Y-m-d'));
+});
+
+it('opens the shop switcher sheet from the shared header trait', function () {
+    fakeForecastsEndpoint(historical: [], forecasts: []);
+    Http::fake(['*/api/v1/shops' => Http::response(['shops' => []])]);
+
+    $screen = Native::test(Forecasts::class);
+    $screen->call('openShopSwitcher');
+
+    expect($screen->get('shopSheetOpen'))->toBeTrue();
+});
+
+// Proves the /forecasts route registration + TabsLayout wiring, not just
+// the screen class in isolation — Native::visit() (unlike Native::test())
+// resolves the layout from the route itself, so this is the only test in
+// this file that would fail if routes/web.php's registration were missing
+// (matches StockScreenTest's "shows the shared tab bar" convention).
+it('is reachable at /forecasts with the Prévisions tab active', function () {
+    fakeForecastsEndpoint(historical: [], forecasts: []);
+
+    Native::visit('/forecasts')
+        ->assertHasTab('Prévisions')
+        ->assertTabActive('Prévisions');
 });
