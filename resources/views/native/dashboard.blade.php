@@ -189,5 +189,29 @@
                 <text ref="dashboard-top-products-empty" class="text-sm text-theme-on-surface-variant">{{ $dayScope === 1 ? 'Aucune vente hier.' : "Aucune vente aujourd'hui." }}</text>
             @endforelse
         </column>
+
+        {{--
+            accountInitials/accountName/accountEmail are passed explicitly
+            rather than called from inside account-sheet.blade.php:
+            NativeComponent::renderBladeBoundToSelf() only binds `$this` to
+            the component for the top-level compiled view — Blade's own
+            @include mechanism (PhpEngine::evaluatePath ->
+            Filesystem::getRequire) runs the nested view through a static
+            closure with no object context, so `$this->...()` inside an
+            @include'd partial fails with "Using $this when not in object
+            context". Every screen that includes this partial (Tasks 7-9)
+            must pass these same three keys.
+            shop-switcher-sheet.blade.php has no such requirement: it reads
+            LocalState::current()->shop_id directly (a static call, no $this
+            needed) instead of $this->currentShopId(), and $shopSheetOpen /
+            $switcherShops are plain public properties already in scope —
+            so it can be @include'd with no extra data, as the brief intended.
+        --}}
+        @include('native.partials.shop-switcher-sheet')
+        @include('native.partials.account-sheet', [
+            'accountInitials' => $this->accountInitials(),
+            'accountName' => $this->accountName(),
+            'accountEmail' => $this->accountEmail(),
+        ])
     </column>
 </refreshable>

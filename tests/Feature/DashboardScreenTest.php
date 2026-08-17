@@ -11,9 +11,10 @@ afterEach(function () {
     Carbon::setTestNow();
 });
 
-function fakeDashboardEndpoints(array $shops = [], ?array $widgets = null, ?array $topProducts = null): void
+function fakeDashboardEndpoints(array $shops = [], ?array $widgets = null, ?array $topProducts = null, ?array $user = null): void
 {
     Http::fake([
+        '*/auth/me*' => Http::response(['user' => $user ?? ['name' => 'Test User', 'email' => 'test@example.test']], 200),
         '*/dashboard/metrics*' => Http::response(['metrics' => [
             'revenue_today' => 320.5,
             'orders_today' => 4,
@@ -94,7 +95,7 @@ it('refetches data on pull-to-refresh', function () {
 
     Native::visit('/dashboard')->call('refresh');
 
-    Http::assertSentCount(15); // 7 dashboard + 1 forecast on mount, 7 dashboard on refresh (forecast doesn't refresh automatically)
+    Http::assertSentCount(17); // 8 dashboard (incl. auth/me) + 1 forecast on mount, 8 dashboard on refresh (forecast doesn't refresh automatically)
 });
 
 it('is fully accessible', function () {
@@ -111,6 +112,7 @@ it('shows a generic error instead of crashing when the network is unavailable', 
 
 it('shows a generic error instead of crashing when the charts endpoint returns a 500', function () {
     Http::fake([
+        '*/auth/me*' => Http::response(['user' => ['name' => 'Test User', 'email' => 'test@example.test']], 200),
         '*/dashboard/charts*' => Http::response(['message' => 'Server Error'], 500),
         '*/dashboard/metrics*' => Http::response(['metrics' => [
             'revenue_today' => 320.5,
@@ -572,8 +574,12 @@ it('navigates to alerts via goAlerts', function () {
 });
 
 it('loads the current user and computes account name/email/initials', function () {
-    fakeDashboardEndpoints();
-    Http::fake(['*/api/v1/auth/me' => Http::response(['user' => ['name' => 'Marie Chevalier', 'email' => 'marie@boutique-principale.fr']])]);
+    // The user fixture goes through fakeDashboardEndpoints()'s own `user`
+    // param rather than a second, separately-registered Http::fake() call —
+    // Http::fake() stubs are matched in registration order (first matching
+    // pattern wins), so a second '*/auth/me' fake here would never actually
+    // override fakeDashboardEndpoints()'s own '*/auth/me*' stub.
+    fakeDashboardEndpoints(user: ['name' => 'Marie Chevalier', 'email' => 'marie@boutique-principale.fr']);
 
     $screen = Native::test(Dashboard::class);
     $screen->call('loadCurrentUser');
@@ -581,4 +587,66 @@ it('loads the current user and computes account name/email/initials', function (
     expect($screen->instance()->accountName())->toBe('Marie Chevalier')
         ->and($screen->instance()->accountEmail())->toBe('marie@boutique-principale.fr')
         ->and($screen->instance()->accountInitials())->toBe('MC');
+});
+
+it('renders the shop switcher sheet with each shop and highlights the active one', function () {
+    LocalState::current()->update(['shop_id' => 'shop-1']);
+    // Shops passed via fakeDashboardEndpoints() itself — see the comment on
+    // the "opens and closes the shop switcher sheet" test above for why a
+    // separately-registered '*/shops' fake wouldn't take effect here.
+    fakeDashboardEndpoints([
+        ['id' => 'shop-1', 'name' => 'Boutique Principale', 'platform' => 'prestashop', 'revenue_delta_percent' => 12.0],
+        ['id' => 'shop-2', 'name' => 'Boutique Client A', 'platform' => 'shopify', 'revenue_delta_percent' => -1.4],
+    ]);
+
+    $screen = Native::test(Dashboard::class);
+    $screen->call('openShopSwitcher');
+
+    $tree = $screen->tree();
+    $sheet = findNodeByRef($tree, 'shop-switcher-sheet');
+
+    expect($sheet['props']['visible'] ?? null)->toBeTruthy();
+    $row1 = findNodeByRef($tree, 'shop-switcher-row-shop-1');
+    $row2 = findNodeByRef($tree, 'shop-switcher-row-shop-2');
+    expect($row1)->not->toBeNull();
+    expect($row2)->not->toBeNull();
+
+    // "highlights the active one": the active shop (shop-1, set via
+    // LocalState above) must render with a different background than the
+    // inactive one — not just that both rows exist. Same style-comparison
+    // pattern as the "gives the selected revenue bar a different style"
+    // test above.
+    expect($row1['style']['bg_color'] ?? null)
+        ->not->toBe($row2['style']['bg_color'] ?? null);
+});
+
+it('renders the account sheet with the user name and email', function () {
+    // User fixture via fakeDashboardEndpoints()'s own `user` param — see the
+    // stub-ordering comment on the "loads the current user" test above.
+    fakeDashboardEndpoints(user: ['name' => 'Marie Chevalier', 'email' => 'marie@boutique-principale.fr']);
+
+    $screen = Native::test(Dashboard::class);
+    $screen->call('openAccountSheet');
+
+    $tree = $screen->tree();
+
+    expect(findNodeByRef($tree, 'account-sheet')['props']['visible'] ?? null)->toBeTruthy();
+    // Asserted on the resolved `text` prop, not just presence — the sheet is
+    // always in the tree regardless of `visible`, so an isset()-only check
+    // would pass even if Dashboard::refresh() never called loadCurrentUser()
+    // and these fields rendered empty.
+    expect(findNodeByRef($tree, 'account-sheet-name')['props']['text'] ?? null)->toBe('Marie Chevalier');
+    expect(findNodeByRef($tree, 'account-sheet-email')['props']['text'] ?? null)->toBe('marie@boutique-principale.fr');
+});
+
+it('navigates to stock and orders from the account sheet', function () {
+    fakeDashboardEndpoints();
+
+    $screen = Native::test(Dashboard::class);
+    $screen->call('goStock');
+    $screen->assertNavigatedTo('/stock');
+
+    $screen = Native::test(Dashboard::class);
+    $screen->call('goOrders');
+    $screen->assertNavigatedTo('/orders');
 });

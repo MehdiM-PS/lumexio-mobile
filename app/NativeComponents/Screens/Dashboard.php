@@ -69,6 +69,7 @@ class Dashboard extends NativeComponent
     {
         $this->loading = true;
         $this->resetApiError();
+        $this->loadCurrentUser();
         // Reset before the fetch so a stale index never survives into
         // freshly-fetched data with a possibly-different length.
         $this->selectedBarIndex = null;
