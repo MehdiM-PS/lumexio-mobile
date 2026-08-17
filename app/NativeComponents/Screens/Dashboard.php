@@ -102,12 +102,22 @@ class Dashboard extends NativeComponent
      * Today's/yesterday's revenue as a delta vs. that day's forecast —
      * `ca_forecast_percent` (already actual ÷ forecast × 100) minus 100.
      * Null when no forecast exists for the day (never a fabricated 0%).
+     *
+     * A delta that rounds to zero at the displayed precision (e.g. -0.2) is
+     * normalized to 0.0 here so it never reaches the blade's sign/color
+     * logic as a tiny negative and renders as a red "-0%".
      */
     public function heroDeltaPercent(): ?float
     {
         $percent = $this->widgets['ca_forecast_percent'] ?? null;
 
-        return $percent === null ? null : $percent - 100;
+        if ($percent === null) {
+            return null;
+        }
+
+        $delta = $percent - 100;
+
+        return abs($delta) < 0.5 ? 0.0 : $delta;
     }
 
     public function forecast30d(): float

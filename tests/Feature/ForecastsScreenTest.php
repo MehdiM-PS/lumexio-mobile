@@ -88,9 +88,10 @@ it('renders a bar per historical and forecast day, with distinct colors for hist
 });
 
 // `<rect @press>` bars compile with the callback id at the wire node's TOP
-// LEVEL (on_press), the same as Dashboard's own chart bars — not nested
-// under props like `<button @press>`. Confirmed against
-// tests/Feature/DashboardScreenTest.php's `dashboard-chart-bar-0` assertion.
+// LEVEL (on_press), the same as the stock-history chart's own bars — not
+// nested under props like `<button @press>`. Confirmed against
+// tests/Feature/ItemDetailScreenTest.php's `stock-history-chart-bar-0`
+// assertion.
 it('selects a bar via the real binding and shows a Réalisé/Prévu readout', function () {
     fakeForecastsEndpoint(historical: [sampleHistoricalDay(['revenue' => 88.5])], forecasts: []);
 

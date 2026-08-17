@@ -285,6 +285,24 @@ it('shows a negative hero delta vs the day forecast', function () {
     $screen->assertSee('-12%');
 });
 
+it('normalizes a delta that rounds to zero so it never renders as -0%', function () {
+    // ca_forecast_percent=99.8 gives a raw delta of -0.2 — without the
+    // abs(...) < 0.5 normalization in heroDeltaPercent(), number_format on
+    // that raw value would render '-0%' in destructive red, which is
+    // cosmetically wrong (this isn't the "no forecast" case, which is
+    // already handled separately by the null gate above).
+    fakeDashboardEndpoints(widgets: [
+        'day' => 'today', 'date' => today()->toDateString(), 'ca_forecast_percent' => 99.8,
+        'ca_forecast_predicted' => 300.0, 'avg_cart' => 45.0, 'avg_cart_comparison' => 40.0,
+        'avg_cart_change' => 12.5, 'new_customers' => 3, 'week_revenue' => 1200.0, 'week_trend' => 8.0,
+    ]);
+
+    $screen = Native::test(Dashboard::class);
+
+    expect($screen->instance()->heroDeltaPercent())->toBe(0.0);
+    $screen->assertSee('+0%')->assertDontSee('-0%');
+});
+
 it('hides the hero delta when the day forecast is unavailable', function () {
     fakeDashboardEndpoints(widgets: [
         'day' => 'today', 'date' => today()->toDateString(), 'ca_forecast_percent' => null,
@@ -314,7 +332,16 @@ it('renders the 3 new KPI cards with their sub-labels', function () {
     expect($screen->instance()->vipCount())->toBe(128);
     expect($screen->instance()->atRiskCount())->toBe(6);
 
-    $screen->assertSee('87 000')->assertSee('92')->assertSee('3')->assertSee('128')->assertSee('6');
+    $screen->assertSee('87 000')->assertSee('92')->assertSee('128');
+
+    // assertSee('3') and assertSee('6') are satisfied by unrelated text
+    // elsewhere on the screen (e.g. '3' also appears in '320,50 €'), so they
+    // don't actually prove the critical-stock/at-risk KPI values render
+    // correctly. Assert on the rendered elements themselves instead.
+    $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-kpi-critical-stock'
+        && ($n['props']['text'] ?? null) === '3');
+    $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-kpi-at-risk'
+        && ($n['props']['text'] ?? null) === '6 à risque');
 });
 
 it('looks up VIP and at-risk counts by segment name, not array position', function () {
@@ -344,6 +371,15 @@ it('shows the 3 most recent alerts with an empty state when there are none', fun
     fakeDashboardEndpoints(alerts: []);
 
     Native::visit('/dashboard')->assertSee('Aucune alerte récente.');
+
+    // Wire-level backstop for the /alerts request's per_page=3 cap — mirrors
+    // this file's own convention of asserting /dashboard/widgets's `day` param
+    // via Http::assertSent(...). Without this, a future edit that drops or
+    // renames the param would silently make Accueil (the app's default
+    // landing screen) render the server's full alert list with nothing
+    // failing, since dashboard.blade.php has no client-side take(3) backstop.
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/alerts')
+        && ($request['per_page'] ?? null) === 3);
 });
 
 it('navigates to the alerts tab from "Tout voir"', function () {

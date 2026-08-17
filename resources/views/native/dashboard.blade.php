@@ -66,20 +66,20 @@
                 <text ref="dashboard-kpi-vip" class="text-xl font-bold text-theme-on-surface" content-transition="numeric">
                     {{ $this->vipCount() }}
                 </text>
-                <text class="text-xs text-theme-destructive">{{ $this->atRiskCount() }} à risque</text>
+                <text ref="dashboard-kpi-at-risk" class="text-xs text-theme-destructive">{{ $this->atRiskCount() }} à risque</text>
             </column>
         </row>
 
         <row class="w-full justify-between items-baseline">
             <text class="text-base font-semibold text-theme-on-background">Alertes récentes</text>
-            <pressable ref="dashboard-alerts-see-all" @press="goAlerts">
+            <pressable ref="dashboard-alerts-see-all" class="px-[4] py-[6]" @press="goAlerts">
                 <text class="text-sm font-semibold text-theme-primary">Tout voir</text>
             </pressable>
         </row>
         <column class="w-full gap-2">
             @forelse ($recentAlerts as $alert)
                 <row class="w-full items-start gap-2 rounded-lg bg-theme-surface-variant px-4 py-[10]">
-                    <column class="h-[8] w-[8] rounded-full {{ ($alert['severity'] ?? 'info') === 'critical' ? 'bg-theme-destructive' : (($alert['severity'] ?? 'info') === 'warning' ? 'bg-theme-accent' : 'bg-theme-success') }} mt-[6]" />
+                    <column class="h-[8] w-[8] rounded-full {{ ($alert['severity'] ?? 'info') === 'critical' ? 'bg-theme-destructive' : (($alert['severity'] ?? 'info') === 'warning' ? 'bg-theme-accent' : 'bg-theme-primary') }} mt-[6]" />
                     <column class="flex-1 gap-0">
                         <text class="text-sm font-semibold text-theme-on-surface">{{ $alert['title'] ?? '' }}</text>
                         <text class="text-xs text-theme-on-surface-variant">{{ $alert['message'] ?? '' }}</text>
