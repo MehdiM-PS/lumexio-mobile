@@ -1,5 +1,6 @@
 <?php
 
+use App\NativeComponents\Screens\Stock;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 
@@ -49,6 +50,35 @@ it('switches to the suppliers tab and mounts the nested StockSuppliersTab', func
     Native::visit('/stock')
         ->set('activeTab', 2)
         ->assertElement('tab_row', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-suppliers-subtabs');
+});
+
+// Stock.php gained `use HasHeaderChrome;` (plus HandlesApiErrors and a
+// mount() loading the account) so the shared header — now rendered via
+// TabsLayout::navBar() on every screen in its nativeGroup, Stock included —
+// has working buttons here instead of silently no-op'ing (NativeComponent's
+// press dispatch does a bare method_exists check and returns early when a
+// screen lacks the handler, rather than crashing).
+it('wires the shared header actions (shop switcher, account sheet, alerts) onto the screen', function () {
+    Http::fake([
+        '*/auth/me*' => Http::response(['user' => ['name' => 'Test User', 'email' => 'test@example.test']], 200),
+        '*/shops*' => Http::response(['shops' => []], 200),
+        '*/alerts/stock-overview*' => Http::response(['stats' => ['total' => 0, 'low_stock' => 0, 'out_of_stock' => 0], 'valuation' => ['total_value' => 0, 'total_quantity' => 0]], 200),
+        '*/alerts*' => Http::response(['alerts' => [], 'pagination' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 50, 'total' => 0]], 200),
+        '*/products/variants*' => Http::response(['variants' => [], 'pagination' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 50, 'total' => 0]], 200),
+        '*/products*' => Http::response(['products' => [], 'pagination' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 50, 'total' => 0]], 200),
+    ]);
+
+    $screen = Native::test(Stock::class);
+
+    $screen->call('openShopSwitcher')
+        ->assertSet('shopSheetOpen', true);
+
+    $screen->call('openAccountSheet')
+        ->assertSet('accountSheetOpen', true)
+        ->assertSet('shopSheetOpen', false);
+
+    $screen->call('goAlerts')
+        ->assertNavigatedTo('/alerts');
 });
 
 it('navigates to the item detail screen when a product row is selected', function () {

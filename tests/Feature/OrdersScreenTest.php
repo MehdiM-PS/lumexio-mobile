@@ -6,13 +6,20 @@ use Native\Mobile\Testing\Native;
 
 function fakeOrdersEndpoints(array $orders = [], ?array $pagination = null, ?string $error = null): void
 {
+    // Orders now loads the shared header's account data too (HasHeaderChrome)
+    // — fake /auth/me so that call succeeds and doesn't clobber $lastApiError
+    // ahead of (or, in the $error case, get overwritten by) the /orders call.
     if ($error !== null) {
-        Http::fake(['*/orders*' => Http::response(['message' => $error], 500)]);
+        Http::fake([
+            '*/auth/me*' => Http::response(['user' => ['name' => 'Test User', 'email' => 'test@example.test']], 200),
+            '*/orders*' => Http::response(['message' => $error], 500),
+        ]);
 
         return;
     }
 
     Http::fake([
+        '*/auth/me*' => Http::response(['user' => ['name' => 'Test User', 'email' => 'test@example.test']], 200),
         '*/orders*' => Http::response([
             'orders' => $orders,
             'pagination' => $pagination ?? [
@@ -169,6 +176,32 @@ it('navigates to the order detail screen when a row is selected, looking up the 
     Native::test(Orders::class)
         ->call('selectOrder', 1)
         ->assertNavigatedTo('/orders/1');
+});
+
+// Orders.php gained `use HasHeaderChrome;` (plus a loadCurrentUser() call in
+// refresh()) so the shared header — now rendered via TabsLayout::navBar()
+// on every screen in its nativeGroup, Orders included — has working buttons
+// here instead of silently no-op'ing (NativeComponent's press dispatch does
+// a bare method_exists check and returns early when a screen lacks the
+// handler, rather than crashing).
+it('wires the shared header actions (shop switcher, account sheet, alerts) onto the screen', function () {
+    Http::fake([
+        '*/auth/me*' => Http::response(['user' => ['name' => 'Test User', 'email' => 'test@example.test']], 200),
+        '*/shops*' => Http::response(['shops' => []], 200),
+        '*/orders*' => Http::response(['orders' => [], 'pagination' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 20, 'total' => 0]], 200),
+    ]);
+
+    $screen = Native::test(Orders::class);
+
+    $screen->call('openShopSwitcher')
+        ->assertSet('shopSheetOpen', true);
+
+    $screen->call('openAccountSheet')
+        ->assertSet('accountSheetOpen', true)
+        ->assertSet('shopSheetOpen', false);
+
+    $screen->call('goAlerts')
+        ->assertNavigatedTo('/alerts');
 });
 
 it('is fully accessible', function () {

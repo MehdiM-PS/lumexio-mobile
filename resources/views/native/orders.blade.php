@@ -54,5 +54,12 @@
                 <button ref="orders-load-more" variant="secondary" @press="loadMore">Charger plus</button>
             @endif
         </column>
+
+        @include('native.partials.shop-switcher-sheet')
+        @include('native.partials.account-sheet', [
+            'accountInitials' => $this->accountInitials(),
+            'accountName' => $this->accountName(),
+            'accountEmail' => $this->accountEmail(),
+        ])
     </column>
 </refreshable>

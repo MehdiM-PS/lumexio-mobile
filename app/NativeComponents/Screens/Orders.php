@@ -3,6 +3,7 @@
 namespace App\NativeComponents\Screens;
 
 use App\NativeComponents\Concerns\HandlesApiErrors;
+use App\NativeComponents\Concerns\HasHeaderChrome;
 use App\Services\LumexioApi;
 use Illuminate\View\View;
 use Native\Mobile\Edge\NativeComponent;
@@ -10,6 +11,7 @@ use Native\Mobile\Edge\NativeComponent;
 class Orders extends NativeComponent
 {
     use HandlesApiErrors;
+    use HasHeaderChrome;
 
     /**
      * Every fetch (initial load, search, load-more) is scoped to this many
@@ -33,6 +35,7 @@ class Orders extends NativeComponent
     public function refresh(): void
     {
         $this->resetApiError();
+        $this->loadCurrentUser();
         $this->currentPage = 1;
 
         $data = $this->callApi(fn () => app(LumexioApi::class)->get('/orders', [
