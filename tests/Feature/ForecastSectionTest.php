@@ -55,8 +55,8 @@ it('fetches the shop-level forecast and historical data on mount', function () {
 // (confirmed by dumping the compiled tree for this exact scenario) — there
 // is no literal `class` string left in `props` to str_contains() against,
 // unlike text/font props. So this compares the actually-resolved colors:
-// the historical bar must resolve the primary token (#0D9488, config/native-ui.php)
-// and the forecast bar the accent token (#F59E0B), proving the chart visually
+// the historical bar must resolve the primary token (#2D5D5A, config/native-ui.php)
+// and the forecast bar the accent token (#EC7C0E), proving the chart visually
 // distinguishes historical-vs-forecast days rather than reusing one color.
 it('renders a bar per historical and forecast day, with distinct colors for historical vs forecast', function () {
     fakeForecastsEndpoint(historical: [sampleHistoricalDay(['date' => today()->format('Y-m-d')])], forecasts: [sampleForecastDay(['forecast_date' => today()->addDay()->format('Y-m-d')])]);
@@ -68,8 +68,8 @@ it('renders a bar per historical and forecast day, with distinct colors for hist
 
     expect($bar0)->not->toBeNull();
     expect($bar1)->not->toBeNull();
-    expect($bar0['style']['bg_color'] ?? null)->toContain('0D9488');
-    expect($bar1['style']['bg_color'] ?? null)->toContain('F59E0B');
+    expect($bar0['style']['bg_color'] ?? null)->toContain('2D5D5A');
+    expect($bar1['style']['bg_color'] ?? null)->toContain('EC7C0E');
     expect($bar0['style']['bg_color'] ?? null)->not->toBe($bar1['style']['bg_color'] ?? null);
 });
 

@@ -40,27 +40,33 @@ return [
     'theme' => [
 
         'light' => [
-            'primary' => '#0D9488',
+            'primary' => '#2D5D5A',
             'on-primary' => '#FFFFFF',
 
-            'secondary' => '#4B5563',
+            'secondary' => '#6D6F78',
             'on-secondary' => '#FFFFFF',
 
             'surface' => '#FFFFFF',
-            'on-surface' => '#111827',
-            'background' => '#FFFFFF',
-            'on-background' => '#111827',
+            'on-surface' => '#14151A',
+            'background' => '#FAFAF8',
+            'on-background' => '#14151A',
 
-            'surface-variant' => '#F9FAFB',
-            'on-surface-variant' => '#6B7280',
+            'surface-variant' => '#F0EDE8',
+            'on-surface-variant' => '#6D6F78',
 
-            'outline' => '#E5E7EB',
+            'outline' => '#11111114',
 
-            'destructive' => '#DC2626',
+            'destructive' => '#E24947',
             'on-destructive' => '#FFFFFF',
 
-            'accent' => '#F59E0B',
+            'accent' => '#EC7C0E',
             'on-accent' => '#FFFFFF',
+
+            // Positive/success indicator — deltas, confirmations. Distinct
+            // from `primary` (brand teal) per the 2026-08 redesign, which
+            // uses a dedicated green for "up"/"good" signals.
+            'success' => '#36A558',
+            'on-success' => '#FFFFFF',
         ],
 
         'dark' => [
@@ -68,9 +74,9 @@ return [
         ],
 
         // Corner radii (points / dp).
-        'radius-sm' => 4,
-        'radius-md' => 8,
-        'radius-lg' => 16,
+        'radius-sm' => 6,
+        'radius-md' => 10,
+        'radius-lg' => 14,
         'radius-full' => 9999,
 
         // Font size scale (points / sp).
@@ -81,7 +87,8 @@ return [
     ],
 
     'fonts' => [
-        'default' => 'PlusJakartaSans-Regular',
+        // System font (-apple-system / SF Pro) per the 2026-08 redesign —
+        // no bundled default typeface.
     ],
 
 ];
