@@ -4,6 +4,7 @@ namespace App\NativeComponents\Screens;
 
 use App\Models\LocalState;
 use App\NativeComponents\Concerns\HandlesApiErrors;
+use App\NativeComponents\Concerns\HasHeaderChrome;
 use App\Services\LumexioApi;
 use Illuminate\View\View;
 use Native\Mobile\Edge\NativeComponent;
@@ -13,6 +14,7 @@ use Native\Mobile\Facades\Dialog;
 class Alerts extends NativeComponent
 {
     use HandlesApiErrors;
+    use HasHeaderChrome;
 
     /**
      * French label for every backend alert `type` slug, in display order.
@@ -54,6 +56,7 @@ class Alerts extends NativeComponent
     public function refresh(): void
     {
         $this->resetApiError();
+        $this->loadCurrentUser();
 
         $query = array_filter([
             'severity' => $this->severityFilter,

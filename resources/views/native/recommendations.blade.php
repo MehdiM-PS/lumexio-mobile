@@ -17,4 +17,11 @@
     @else
         <native:recommendations-rejected-tab />
     @endif
+
+    @include('native.partials.shop-switcher-sheet')
+    @include('native.partials.account-sheet', [
+        'accountInitials' => $this->accountInitials(),
+        'accountName' => $this->accountName(),
+        'accountEmail' => $this->accountEmail(),
+    ])
 </column>

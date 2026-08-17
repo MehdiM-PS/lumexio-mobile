@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Http;
 use Native\Mobile\Events\Alert\ButtonPressed;
 use Native\Mobile\Testing\Native;
 
-function fakeAlertsScreenEndpoints(array $alerts = [], ?array $stats = null, ?string $error = null): void
+function fakeAlertsScreenEndpoints(array $alerts = [], ?array $stats = null, ?string $error = null, ?array $user = null): void
 {
     if ($error !== null) {
         Http::fake(['*/alerts*' => Http::response(['message' => $error], 500)]);
@@ -20,6 +20,10 @@ function fakeAlertsScreenEndpoints(array $alerts = [], ?array $stats = null, ?st
         '*/alerts/delete-read' => Http::response(['message' => 'Alertes lues supprimées', 'count' => 1], 200),
         '*/alerts/stats*' => Http::response(['stats' => $stats ?? ['total' => count($alerts), 'unread' => 0, 'critical_unread' => 0, 'today' => 0]], 200),
         '*/alerts*' => Http::response(['alerts' => $alerts, 'pagination' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 50, 'total' => count($alerts)]], 200),
+        // Alerts now mixes in HasHeaderChrome and loads the current user via
+        // loadCurrentUser() on refresh() (Task 9) — left unfaked, /auth/me
+        // falls through unmatched and throws.
+        '*/auth/me*' => Http::response(['user' => $user ?? ['name' => 'Test User', 'email' => 'test@example.com']], 200),
     ]);
 }
 
@@ -317,4 +321,22 @@ it('caches the unread alert count in LocalState on refresh', function () {
     Native::test(Alerts::class);
 
     expect(LocalState::current()->fresh()->unread_alert_count)->toBe(4);
+});
+
+it('opens the account sheet from the shared header trait', function () {
+    // A distinct name/email (not the helper's "Test User" default) makes
+    // this fake load-bearing: the tree assertions below prove the sheet
+    // partial actually rendered the fetched user, not just that
+    // accountSheetOpen flipped to true.
+    fakeAlertsScreenEndpoints(user: ['name' => 'Camille Rousseau', 'email' => 'camille@boutique.fr']);
+
+    $screen = Native::test(Alerts::class);
+    $screen->call('openAccountSheet');
+
+    expect($screen->get('accountSheetOpen'))->toBeTrue();
+
+    $tree = $screen->tree();
+    expect(findNodeByRef($tree, 'account-sheet')['props']['visible'] ?? null)->toBeTruthy();
+    expect(findNodeByRef($tree, 'account-sheet-name')['props']['text'] ?? null)->toBe('Camille Rousseau');
+    expect(findNodeByRef($tree, 'account-sheet-email')['props']['text'] ?? null)->toBe('camille@boutique.fr');
 });
