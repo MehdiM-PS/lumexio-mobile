@@ -5,13 +5,18 @@ use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
 
 // The 5-tab bar no longer has a Stock entry (TabsLayout was restructured to
-// Accueil/Prévisions/Ventes/Reco/Alertes) — /stock stays in TabsLayout's
-// nativeGroup and still gets the shared chrome, but with no tab of its own,
-// so no tab highlights as active while it's on screen. Pending a later task
-// in this SDD plan folding Stock's content into one of the 5 new tabs (or
-// dropping it from the group).
+// Accueil/Prévisions/Ventes/Reco/Alertes). This is deliberate and final for
+// this redesign: /stock stays registered inside TabsLayout's nativeGroup so
+// the account sheet's Stock/Fournisseurs rows still resolve and the screen
+// keeps the shared chrome — it just has no tab of its own, so no tab
+// highlights as active while it's on screen.
+//
+// Every test in this file mounts Stock, whose mount() calls
+// HasHeaderChrome::loadCurrentUser() — so each Http::fake() block below must
+// stub '*/auth/me*'. Unstubbed, it is a stray request (see tests/Pest.php).
 it('shows the shared tab bar, with no tab of its own', function () {
     Http::fake([
+        '*/auth/me*' => Http::response(['user' => ['name' => 'Test User', 'email' => 'test@example.test']], 200),
         '*/alerts/stock-overview*' => Http::response(['stats' => ['total' => 0, 'low_stock' => 0, 'out_of_stock' => 0], 'valuation' => ['total_value' => 0, 'total_quantity' => 0]], 200),
         '*/alerts*' => Http::response(['alerts' => [], 'pagination' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 50, 'total' => 0]], 200),
         '*/products/variants*' => Http::response(['variants' => [], 'pagination' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 50, 'total' => 0]], 200),
@@ -25,6 +30,7 @@ it('shows the shared tab bar, with no tab of its own', function () {
 
 it('shows the products tab by default and switches to alerts', function () {
     Http::fake([
+        '*/auth/me*' => Http::response(['user' => ['name' => 'Test User', 'email' => 'test@example.test']], 200),
         '*/alerts/stock-overview*' => Http::response(['stats' => ['total' => 0, 'low_stock' => 0, 'out_of_stock' => 0], 'valuation' => ['total_value' => 0, 'total_quantity' => 0]], 200),
         '*/alerts*' => Http::response(['alerts' => [], 'pagination' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 50, 'total' => 0]], 200),
         '*/products/variants*' => Http::response(['variants' => [], 'pagination' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 50, 'total' => 0]], 200),
@@ -39,6 +45,7 @@ it('shows the products tab by default and switches to alerts', function () {
 
 it('switches to the suppliers tab and mounts the nested StockSuppliersTab', function () {
     Http::fake([
+        '*/auth/me*' => Http::response(['user' => ['name' => 'Test User', 'email' => 'test@example.test']], 200),
         '*/alerts/stock-overview*' => Http::response(['stats' => ['total' => 0, 'low_stock' => 0, 'out_of_stock' => 0], 'valuation' => ['total_value' => 0, 'total_quantity' => 0]], 200),
         '*/alerts*' => Http::response(['alerts' => [], 'pagination' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 50, 'total' => 0]], 200),
         '*/products/variants*' => Http::response(['variants' => [], 'pagination' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 50, 'total' => 0]], 200),
@@ -83,6 +90,7 @@ it('wires the shared header actions (shop switcher, account sheet, alerts) onto 
 
 it('navigates to the item detail screen when a product row is selected', function () {
     Http::fake([
+        '*/auth/me*' => Http::response(['user' => ['name' => 'Test User', 'email' => 'test@example.test']], 200),
         '*/products/variants*' => Http::response(['variants' => [], 'pagination' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 50, 'total' => 0]], 200),
         '*/products*' => Http::response(['products' => [
             ['id' => 1, 'prestashop_id' => 1, 'name' => 'T-shirt', 'reference' => 'TS-1', 'quantity' => 10,

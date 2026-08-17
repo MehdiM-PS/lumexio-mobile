@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Native\Mobile\Edge\CallbackRegistry;
 use Tests\TestCase;
 
@@ -17,6 +18,25 @@ use Tests\TestCase;
 
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
+    /*
+     * Laravel's Http client lets UNMATCHED requests through to the real
+     * network by default (PendingRequest::$preventStrayRequests = false) —
+     * Http::fake([...]) only stubs the patterns you list, it does NOT return
+     * an empty 200 for everything else. With config('lumexio.api_url')
+     * defaulting to the live https://lumexio.tech/api/v1, any endpoint a
+     * screen hits but a test forgets to fake becomes a real request to
+     * PRODUCTION during `php artisan test`.
+     *
+     * This bit us for real: when HasHeaderChrome's loadCurrentUser() was
+     * added to Stock/Alerts, several already-existing tests in those files
+     * started silently calling GET /auth/me against production and still
+     * passed (a 401 there is swallowed by HandlesApiErrors::callApi()).
+     *
+     * Preventing stray requests makes that fail loudly instead. The flag is
+     * read in Factory::createPendingRequest(), so setting it here survives
+     * every later Http::fake() call in the test body.
+     */
+    ->beforeEach(fn () => Http::preventStrayRequests())
     ->in('Feature');
 
 /*

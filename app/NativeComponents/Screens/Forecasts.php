@@ -37,6 +37,10 @@ class Forecasts extends NativeComponent
     public function refresh(): void
     {
         $this->resetApiError();
+        // Loaded first, matching Dashboard/Alerts/Orders/Stock/Recommendations
+        // — so that when both this and the screen's own fetch fail, the
+        // screen's own error is the one left in $lastApiError.
+        $this->loadCurrentUser();
         $this->selectedBarIndex = null;
 
         $data = $this->callApi(fn () => app(LumexioApi::class)->get('/forecasts', array_filter([
@@ -46,8 +50,6 @@ class Forecasts extends NativeComponent
         $this->historical = $data['historical'] ?? [];
         $this->forecasts = $data['forecasts'] ?? [];
         $this->summary = $data['summary'] ?? [];
-
-        $this->loadCurrentUser();
     }
 
     public function updatedProductSearch(): void

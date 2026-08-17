@@ -9,7 +9,16 @@ use Native\Mobile\Testing\Native;
 function fakeAlertsScreenEndpoints(array $alerts = [], ?array $stats = null, ?string $error = null, ?array $user = null): void
 {
     if ($error !== null) {
-        Http::fake(['*/alerts*' => Http::response(['message' => $error], 500)]);
+        // /auth/me is stubbed in this branch too (matching
+        // fakeOrdersEndpoints/fakeForecastsEndpoint): Alerts::refresh() calls
+        // loadCurrentUser() before the /alerts fetch, so leaving it unstubbed
+        // would be a stray request (see tests/Pest.php) AND would make this
+        // branch's assertions depend on loadCurrentUser() happening to run
+        // first — the 500 below must be the only failure under test.
+        Http::fake([
+            '*/auth/me*' => Http::response(['user' => $user ?? ['name' => 'Test User', 'email' => 'test@example.com']], 200),
+            '*/alerts*' => Http::response(['message' => $error], 500),
+        ]);
 
         return;
     }

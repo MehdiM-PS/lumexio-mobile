@@ -148,6 +148,13 @@ it('loads more orders and appends them without losing the first page', function 
     // page-1 fake would still answer the page-2 request. A fakeSequence()
     // hands out its pushed responses in call order instead, which is what
     // this test — mount (page 1) then loadMore() (page 2) — needs.
+    //
+    // Registered separately (and first) from the sequence below: the sequence
+    // is scoped to '*/orders*' only, so Orders::refresh()'s loadCurrentUser()
+    // call would otherwise be a stray request (see tests/Pest.php). The two
+    // patterns are disjoint, so neither shadows the other.
+    Http::fake(['*/auth/me*' => Http::response(['user' => ['name' => 'Test User', 'email' => 'test@example.test']], 200)]);
+
     Http::fakeSequence('*/orders*')
         ->push([
             'orders' => [sampleOrder(['id' => 1, 'reference' => 'ORD-001'])],

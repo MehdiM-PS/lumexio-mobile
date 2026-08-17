@@ -500,9 +500,10 @@ it('opens and closes the shop switcher sheet, loading shops on open', function (
 
     $screen = Native::test(Dashboard::class);
 
-    // Forward guard: the `shop-switcher-sheet` element itself is added by the
-    // sheet partial in Task 4, so this resolves null ?? null and is vacuous
-    // today — it goes live once that partial exists on this screen.
+    // The sheet element is always present in the tree (the partial renders
+    // unconditionally); only its `visible` prop tracks $shopSheetOpen. So
+    // this asserts the sheet starts CLOSED, before openShopSwitcher() below.
+    expect(findNodeByRef($screen->tree(), 'shop-switcher-sheet'))->not->toBeNull();
     expect(findNodeByRef($screen->tree(), 'shop-switcher-sheet')['props']['visible'] ?? null)->toBeFalsy();
 
     $screen->call('openShopSwitcher');

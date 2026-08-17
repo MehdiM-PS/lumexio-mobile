@@ -1,3 +1,9 @@
+@php
+    // Read once, not once per row: LocalState::current() is a firstOrCreate()
+    // query. $this->currentShopId() isn't usable here — @include'd partials
+    // render through a static closure with no $this binding.
+    $activeShopId = \App\Models\LocalState::current()->shop_id;
+@endphp
 <native:bottom-sheet ref="shop-switcher-sheet" :visible="$shopSheetOpen" detents="medium,large" @dismiss="closeShopSwitcher">
     <column class="w-full gap-2 p-4">
         <text class="text-base font-bold text-theme-on-surface">Vos boutiques</text>
@@ -5,7 +11,7 @@
             @foreach ($switcherShops as $shop)
                 <pressable
                     ref="shop-switcher-row-{{ $shop['id'] }}"
-                    class="w-full flex-row items-center justify-between gap-3 rounded-lg {{ ($shop['id'] ?? null) === \App\Models\LocalState::current()->shop_id ? 'bg-theme-primary/10' : 'bg-theme-surface-variant' }} px-4 py-[12]"
+                    class="w-full flex-row items-center justify-between gap-3 rounded-lg {{ ($shop['id'] ?? null) === $activeShopId ? 'bg-theme-primary/10' : 'bg-theme-surface-variant' }} px-4 py-[12]"
                     @press="selectShop('{{ $shop['id'] }}')"
                 >
                     <column class="gap-0">

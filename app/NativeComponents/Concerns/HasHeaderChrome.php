@@ -80,11 +80,15 @@ trait HasHeaderChrome
      */
     public function selectShop(string $shopId): void
     {
+        $state = LocalState::current();
         $shop = collect($this->switcherShops)->firstWhere('id', $shopId);
 
-        LocalState::current()->update([
+        $state->update([
             'shop_id' => $shopId,
-            'active_shop_name' => $shop['name'] ?? null,
+            // Falls back to the previously-cached name rather than blanking
+            // the header when the shop can't be resolved — same convention
+            // Dashboard::refresh() uses for this field.
+            'active_shop_name' => $shop['name'] ?? $state->active_shop_name,
         ]);
 
         $this->closeShopSwitcher();
