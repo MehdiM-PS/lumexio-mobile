@@ -4,6 +4,7 @@ namespace App\NativeComponents\Screens;
 
 use App\Models\LocalState;
 use App\NativeComponents\Concerns\HandlesApiErrors;
+use App\NativeComponents\Concerns\HasHeaderChrome;
 use App\Services\LumexioApi;
 use Illuminate\View\View;
 use Native\Mobile\Edge\NativeComponent;
@@ -11,6 +12,7 @@ use Native\Mobile\Edge\NativeComponent;
 class Dashboard extends NativeComponent
 {
     use HandlesApiErrors;
+    use HasHeaderChrome;
 
     /**
      * Hour of day (matches the web dashboard's `DashboardPage::DAY_SWITCH_HOUR`

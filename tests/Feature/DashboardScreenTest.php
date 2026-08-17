@@ -501,3 +501,84 @@ it('resets the selected bar index when the chart data is refreshed', function ()
 
     expect($screen->get('selectedBarIndex'))->toBeNull();
 });
+
+it('opens and closes the shop switcher sheet, loading shops on open', function () {
+    // Shops passed via fakeDashboardEndpoints() itself — Http::fake() stubs
+    // are matched in registration order (first matching pattern wins), so a
+    // second, separately-registered '*/shops' fake here would never actually
+    // override fakeDashboardEndpoints()'s own broader '*/shops*' stub.
+    fakeDashboardEndpoints([
+        ['id' => 'shop-1', 'name' => 'Boutique Principale', 'platform' => 'prestashop', 'revenue_delta_percent' => 12.0],
+    ]);
+
+    $screen = Native::test(Dashboard::class);
+
+    // Forward guard: the `shop-switcher-sheet` element itself is added by the
+    // sheet partial in Task 4, so this resolves null ?? null and is vacuous
+    // today — it goes live once that partial exists on this screen.
+    expect(findNodeByRef($screen->tree(), 'shop-switcher-sheet')['props']['visible'] ?? null)->toBeFalsy();
+
+    $screen->call('openShopSwitcher');
+
+    expect($screen->get('shopSheetOpen'))->toBeTrue();
+    expect($screen->get('switcherShops'))->toHaveCount(1);
+    // Distinguishes the switcher's own /shops fetch from refresh()'s
+    // separate /shops call (used for the sync-status banner).
+    expect($screen->get('switcherShops')[0]['name'])->toBe('Boutique Principale');
+
+    $screen->call('closeShopSwitcher');
+
+    expect($screen->get('shopSheetOpen'))->toBeFalse();
+});
+
+it('opens the account sheet and closes the shop sheet if it was open', function () {
+    fakeDashboardEndpoints();
+
+    $screen = Native::test(Dashboard::class);
+    $screen->call('openShopSwitcher');
+    expect($screen->get('shopSheetOpen'))->toBeTrue();
+
+    $screen->call('openAccountSheet');
+
+    expect($screen->get('accountSheetOpen'))->toBeTrue()
+        ->and($screen->get('shopSheetOpen'))->toBeFalse();
+});
+
+it('selects a shop, updates LocalState, and replaces to the dashboard', function () {
+    // Shops passed via fakeDashboardEndpoints() itself — see the comment in
+    // the "opens and closes the shop switcher sheet" test above for why a
+    // separately-registered '*/shops' fake wouldn't take effect here.
+    fakeDashboardEndpoints([
+        ['id' => 'shop-2', 'name' => 'Boutique Client A', 'platform' => 'shopify', 'revenue_delta_percent' => 8.2],
+    ]);
+
+    $screen = Native::test(Dashboard::class);
+    $screen->call('openShopSwitcher');
+
+    $screen->call('selectShop', 'shop-2');
+
+    expect(LocalState::current()->fresh()->shop_id)->toBe('shop-2')
+        ->and(LocalState::current()->fresh()->active_shop_name)->toBe('Boutique Client A');
+    $screen->assertReplacedWith('/dashboard');
+});
+
+it('navigates to alerts via goAlerts', function () {
+    fakeDashboardEndpoints();
+
+    $screen = Native::test(Dashboard::class);
+    $screen->call('goAlerts');
+
+    $screen->assertNavigatedTo('/alerts');
+});
+
+it('loads the current user and computes account name/email/initials', function () {
+    fakeDashboardEndpoints();
+    Http::fake(['*/api/v1/auth/me' => Http::response(['user' => ['name' => 'Marie Chevalier', 'email' => 'marie@boutique-principale.fr']])]);
+
+    $screen = Native::test(Dashboard::class);
+    $screen->call('loadCurrentUser');
+
+    expect($screen->instance()->accountName())->toBe('Marie Chevalier')
+        ->and($screen->instance()->accountEmail())->toBe('marie@boutique-principale.fr')
+        ->and($screen->instance()->accountInitials())->toBe('MC');
+});
