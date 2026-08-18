@@ -14,12 +14,40 @@ use Native\Mobile\Testing\Native;
 // wrong reason (an ambient /auth/me failure, not the /forecasts 500 it's
 // meant to exercise). Faked in the $error branch too, so that branch's 500
 // stays isolated to /forecasts.
-function fakeForecastsEndpoint(array $historical = [], array $forecasts = [], ?array $summary = null, ?string $error = null): void
-{
+//
+// Also fakes the two stock-section endpoints (load() now calls
+// loadStockCategories() + loadStock() right after the /forecasts fetch) —
+// added for Task 6. '*/products?*sort=*' is deliberately narrower than a
+// blanket '*/products*' pattern: loadStock() always sends a `sort` param
+// (default 'name'), but the pre-existing per-product forecast search
+// (updatedProductSearch(), GET /products?search=...&per_page=10) never
+// does, so this pattern never matches it — a test's own later, more
+// specific '*/products?search=*' Http::fake() override (several already
+// exist below) is therefore never shadowed by this default, since
+// Http::fake() stubs are matched in registration order (first match wins)
+// and this default flatly doesn't match that URL in the first place.
+function fakeForecastsEndpoint(
+    array $historical = [],
+    array $forecasts = [],
+    ?array $summary = null,
+    ?string $error = null,
+    array $stockProducts = [],
+    array $stockCategories = [],
+    ?array $stockPagination = null,
+): void {
+    $stockStubs = [
+        '*/products/categories*' => Http::response(['categories' => $stockCategories], 200),
+        '*/products?*sort=*' => Http::response([
+            'products' => $stockProducts,
+            'pagination' => $stockPagination ?? ['current_page' => 1, 'last_page' => 1, 'per_page' => 20, 'total' => count($stockProducts)],
+        ], 200),
+    ];
+
     if ($error !== null) {
         Http::fake([
             '*/auth/me*' => Http::response(['user' => ['name' => 'Test User', 'email' => 'test@example.test']], 200),
             '*/forecasts*' => Http::response(['message' => $error], 500),
+            ...$stockStubs,
         ]);
 
         return;
@@ -34,6 +62,7 @@ function fakeForecastsEndpoint(array $historical = [], array $forecasts = [], ?a
             'top_product_forecasts' => [],
             'upcoming_events' => [],
         ], 200),
+        ...$stockStubs,
     ]);
 }
 
@@ -53,6 +82,19 @@ function sampleForecastDay(array $overrides = []): array
         'forecast_type' => 'daily',
         'factors' => [],
         'product' => null,
+    ], $overrides);
+}
+
+function sampleStockProduct(array $overrides = []): array
+{
+    return array_merge([
+        'id' => 1,
+        'name' => 'T-shirt',
+        'reference' => 'TS-1',
+        'quantity' => 12,
+        'average_monthly_sales' => 3.2,
+        'demand_30d' => 5,
+        'days_until_stockout' => 40,
     ], $overrides);
 }
 
@@ -277,6 +319,8 @@ it('is wrapped in a refreshable that calls refresh on pull-to-refresh', function
         '*/forecasts*' => Http::sequence()
             ->push([...$baseResponse, 'historical' => [sampleHistoricalDay()], 'forecasts' => [sampleForecastDay()]], 200)
             ->push([...$baseResponse, 'historical' => [sampleHistoricalDay(['date' => today()->addDay()->format('Y-m-d')])], 'forecasts' => [sampleForecastDay()]], 200),
+        '*/products/categories*' => Http::response(['categories' => []], 200),
+        '*/products?*sort=*' => Http::response(['products' => [], 'pagination' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 20, 'total' => 0]], 200),
     ]);
 
     $screen = Native::test(Forecasts::class);
@@ -316,4 +360,204 @@ it('is reachable at /forecasts with the Prévisions tab active', function () {
     Native::visit('/forecasts')
         ->assertHasTab('Prévisions')
         ->assertTabActive('Prévisions');
+});
+
+// ── Stock & réapprovisionnement (Task 6) ────────────────────────────────
+
+it('loads stock items and categories on mount alongside the forecast data', function () {
+    fakeForecastsEndpoint(
+        historical: [sampleHistoricalDay()],
+        forecasts: [sampleForecastDay()],
+        stockProducts: [sampleStockProduct()],
+        stockCategories: [['id' => 1, 'name' => 'Vêtements']],
+    );
+
+    $screen = Native::test(Forecasts::class);
+
+    expect($screen->get('stockItems'))->toHaveCount(1);
+    expect($screen->get('stockCategories'))->toHaveCount(1);
+});
+
+it('defaults to hiding inactive products and not hiding out-of-stock ones', function () {
+    fakeForecastsEndpoint();
+
+    $screen = Native::test(Forecasts::class);
+
+    expect($screen->get('stockHideInactive'))->toBeTrue();
+    expect($screen->get('stockHideOOS'))->toBeFalse();
+});
+
+it('binds the stock search input to the real debounced syncProperty callback', function () {
+    fakeForecastsEndpoint();
+
+    Native::test(Forecasts::class)
+        ->assertElement('outlined_text_input', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-search-input'
+            && ($n['props']['on_change'] ?? null) === callbackIdFor("__syncProperty('stockSearch')"));
+});
+
+it('searches stock via the real debounced binding, resets to page 1, and sends the search param', function () {
+    fakeForecastsEndpoint(stockProducts: [sampleStockProduct(['name' => 'T-shirt bleu'])]);
+
+    $screen = Native::test(Forecasts::class);
+    $screen->set('stockPage', 3); // simulate having paginated before searching
+    $screen->set('stockSearch', 'bleu');
+
+    expect($screen->get('stockPage'))->toBe(1);
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/products?')
+        && ($request['search'] ?? null) === 'bleu');
+});
+
+it('wires both visibility toggles to the real on_change binding', function () {
+    fakeForecastsEndpoint();
+
+    Native::test(Forecasts::class)
+        ->assertElement('toggle', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-toggle-hide-inactive'
+            && ($n['props']['on_change'] ?? null) === callbackIdFor('toggleStockHideInactive'))
+        ->assertElement('toggle', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-toggle-hide-oos'
+            && ($n['props']['on_change'] ?? null) === callbackIdFor('toggleStockHideOOS'));
+});
+
+it('sends include_inactive=true when the hide-inactive toggle is switched off via the real binding', function () {
+    fakeForecastsEndpoint();
+
+    Native::test(Forecasts::class)->toggle('stock-toggle-hide-inactive', false);
+
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/products?')
+        && ($request['include_inactive'] ?? null) === true);
+});
+
+it('sends exclude_out_of_stock=true when the hide-out-of-stock toggle is switched on via the real binding', function () {
+    fakeForecastsEndpoint();
+
+    Native::test(Forecasts::class)->toggle('stock-toggle-hide-oos', true);
+
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/products?')
+        && ($request['exclude_out_of_stock'] ?? null) === true);
+});
+
+it('opens and closes the category dropdown, and lets a category be selected via the real binding', function () {
+    fakeForecastsEndpoint(stockCategories: [['id' => 1, 'name' => 'Vêtements'], ['id' => 2, 'name' => 'Chaussures']]);
+
+    $screen = Native::test(Forecasts::class)
+        ->assertElement('pressable', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-category-dropdown-toggle'
+            && ($n['on_press'] ?? null) === callbackIdFor('toggleStockCategoryDropdown'));
+
+    $screen->call('toggleStockCategoryDropdown');
+    expect($screen->get('stockCatOpen'))->toBeTrue();
+
+    $screen->assertElement('pressable', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-category-option-2'
+        && ($n['on_press'] ?? null) === callbackIdFor('selectStockCategory(2)'));
+
+    $screen->call('selectStockCategory', 2);
+
+    expect($screen->get('stockCategoryId'))->toBe(2);
+    expect($screen->get('stockCatOpen'))->toBeFalse();
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/products?')
+        && ($request['category_ids'] ?? null) === [2]);
+});
+
+it("filters the category dropdown's options via its own client-side search field", function () {
+    fakeForecastsEndpoint(stockCategories: [['id' => 1, 'name' => 'Vêtements'], ['id' => 2, 'name' => 'Chaussures']]);
+
+    $screen = Native::test(Forecasts::class);
+    $screen->call('toggleStockCategoryDropdown');
+    $screen->set('stockCategorySearch', 'chau');
+
+    $screen->assertElement('pressable', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-category-option-2')
+        ->assertMissingElement('pressable', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-category-option-1');
+});
+
+it('resets the category search field when the dropdown is reopened', function () {
+    fakeForecastsEndpoint(stockCategories: [['id' => 1, 'name' => 'Vêtements']]);
+
+    $screen = Native::test(Forecasts::class);
+    $screen->call('toggleStockCategoryDropdown');
+    $screen->set('stockCategorySearch', 'vet');
+    $screen->call('toggleStockCategoryDropdown'); // close
+    $screen->call('toggleStockCategoryDropdown'); // reopen
+
+    expect($screen->get('stockCategorySearch'))->toBe('');
+});
+
+it('sends server-side sort + dir for the name, stock, and days_left columns', function () {
+    fakeForecastsEndpoint(stockProducts: [sampleStockProduct()]);
+
+    $screen = Native::test(Forecasts::class);
+
+    $screen->call('setStockSort', 'stock');
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/products?')
+        && ($request['sort'] ?? null) === 'stock' && ($request['dir'] ?? null) === 'asc');
+
+    // Tapping the same column again flips the direction.
+    $screen->call('setStockSort', 'stock');
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/products?')
+        && ($request['sort'] ?? null) === 'stock' && ($request['dir'] ?? null) === 'desc');
+
+    $screen->call('setStockSort', 'days_left');
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/products?')
+        && ($request['sort'] ?? null) === 'days_left');
+});
+
+// Regression: the /products endpoint (Task 1) only accepts
+// sort=name|stock|days_left — sending sort=avg_sales 422s. avg_sales must
+// stay client-side-only: never sent as the `sort` param, and applied via a
+// local usort() on the already-loaded page instead.
+it('never sends sort=avg_sales to the API and reorders the loaded page client-side instead', function () {
+    fakeForecastsEndpoint(stockProducts: [
+        sampleStockProduct(['id' => 1, 'name' => 'A', 'average_monthly_sales' => 5.0]),
+        sampleStockProduct(['id' => 2, 'name' => 'B', 'average_monthly_sales' => 1.0]),
+        sampleStockProduct(['id' => 3, 'name' => 'C', 'average_monthly_sales' => 9.0]),
+    ]);
+
+    $screen = Native::test(Forecasts::class);
+    $screen->call('setStockSort', 'avg_sales');
+
+    Http::assertNotSent(fn ($request) => str_contains((string) $request->url(), '/products?')
+        && ($request['sort'] ?? null) === 'avg_sales');
+
+    expect(array_column($screen->get('stockItems'), 'id'))->toBe([2, 1, 3]); // ascending by average_monthly_sales
+
+    // Toggling again flips direction and re-sorts without hitting the network again.
+    Http::fake(); // reset the recorder so assertSentCount below only covers this action
+    $screen->call('setStockSort', 'avg_sales');
+    expect(array_column($screen->get('stockItems'), 'id'))->toBe([3, 1, 2]); // descending
+    Http::assertNothingSent();
+});
+
+it('paginates stock results, disabling prev on the first page and next on the last', function () {
+    fakeForecastsEndpoint(stockProducts: [sampleStockProduct()], stockPagination: ['current_page' => 1, 'last_page' => 3, 'per_page' => 20, 'total' => 50]);
+
+    $screen = Native::test(Forecasts::class)
+        ->assertElement('button', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-page-prev' && ($n['props']['on_press'] ?? null) === callbackIdFor('stockPagePrev'))
+        ->assertElement('button', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-page-next' && ($n['props']['on_press'] ?? null) === callbackIdFor('stockPageNext'));
+
+    expect($screen->get('stockPage'))->toBe(1);
+
+    $screen->call('stockPagePrev'); // no-op on page 1
+    expect($screen->get('stockPage'))->toBe(1);
+
+    $screen->call('stockPageNext');
+    expect($screen->get('stockPage'))->toBe(2);
+
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/products?') && ($request['page'] ?? null) === 2);
+});
+
+it('navigates to the item detail screen when a stock row is tapped', function () {
+    // Sparse fixture (no reference/quantity/average_monthly_sales/days_until_stockout)
+    // — proves the row and the tap survive a partial API payload.
+    fakeForecastsEndpoint(stockProducts: [['id' => 7, 'name' => 'T-shirt']]);
+
+    $screen = Native::test(Forecasts::class)
+        ->assertElement('pressable', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-row-7' && ($n['on_press'] ?? null) === callbackIdFor('selectStockItem(7)'));
+
+    $screen->call('selectStockItem', 7);
+
+    $screen->assertNavigatedTo('/stock/item/product/7');
+});
+
+it('shows an empty-state message when no stock items match the filters', function () {
+    fakeForecastsEndpoint(stockProducts: []);
+
+    Native::test(Forecasts::class)
+        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-empty');
 });

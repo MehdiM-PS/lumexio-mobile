@@ -29,6 +29,33 @@ class Forecasts extends NativeComponent
 
     public array $productResults = [];
 
+    public string $stockSearch = '';
+
+    public ?int $stockCategoryId = null;
+
+    public string $stockCategorySearch = '';
+
+    public bool $stockCatOpen = false;
+
+    public bool $stockHideInactive = true;
+
+    public bool $stockHideOOS = false;
+
+    public string $stockSort = 'name';
+
+    public string $stockDir = 'asc';
+
+    public int $stockPage = 1;
+
+    public array $stockItems = [];
+
+    public array $stockCategories = [];
+
+    public int $stockLastPage = 1;
+
+    /** sort values the /products endpoint accepts server-side (Task 1) — avg_sales is client-side-only, see setStockSort(). */
+    private const array SERVER_SORTABLE_COLUMNS = ['name', 'stock', 'days_left'];
+
     public function mount(): void
     {
         $this->load();
@@ -57,6 +84,9 @@ class Forecasts extends NativeComponent
         $this->historical = $data['historical'] ?? [];
         $this->forecasts = $data['forecasts'] ?? [];
         $this->summary = $data['summary'] ?? [];
+
+        $this->loadStockCategories();
+        $this->loadStock();
     }
 
     public function updatedProductSearch(): void
@@ -93,6 +123,163 @@ class Forecasts extends NativeComponent
         $this->selectedProductId = null;
         $this->selectedProductName = null;
         $this->refresh();
+    }
+
+    private function loadStockCategories(): void
+    {
+        $data = $this->callApi(fn () => app(LumexioApi::class)->get('/products/categories'));
+
+        $this->stockCategories = $data['categories'] ?? [];
+    }
+
+    /**
+     * `stockCategorySearch` filters this already-loaded list client-side —
+     * /products/categories (Task 1) has no search param of its own, and the
+     * category count per shop is small enough that a client-side filter over
+     * the full list is simpler than adding server-side search support.
+     *
+     * @return list<array{id: int, name: string}>
+     */
+    public function filteredStockCategories(): array
+    {
+        $search = mb_strtolower(trim($this->stockCategorySearch));
+
+        if ($search === '') {
+            return $this->stockCategories;
+        }
+
+        return collect($this->stockCategories)
+            ->filter(fn (array $category) => str_contains(mb_strtolower($category['name'] ?? ''), $search))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Callers outside load() (search, category select, both toggles, sort,
+     * pagination) are responsible for calling resetApiError() first, same
+     * contract as updatedProductSearch() — load() already resets once for
+     * its whole sequential chain (forecasts, then categories, then this),
+     * so resetting again in here would wipe a genuine forecasts/categories
+     * failure the moment this call happens to succeed.
+     */
+    private function loadStock(): void
+    {
+        // avg_sales is client-side-only (see setStockSort()) — the /products
+        // endpoint 422s on any sort value outside SERVER_SORTABLE_COLUMNS, so
+        // never send it.
+        $sort = in_array($this->stockSort, self::SERVER_SORTABLE_COLUMNS, true) ? $this->stockSort : null;
+
+        $data = $this->callApi(fn () => app(LumexioApi::class)->get('/products', array_filter([
+            'search' => $this->stockSearch ?: null,
+            'category_ids' => $this->stockCategoryId !== null ? [$this->stockCategoryId] : null,
+            'include_inactive' => ! $this->stockHideInactive,
+            'exclude_out_of_stock' => $this->stockHideOOS,
+            'sort' => $sort,
+            'dir' => $this->stockDir,
+            'page' => $this->stockPage,
+            'per_page' => 20,
+        ], fn ($value) => $value !== null)));
+
+        $this->stockItems = $data['products'] ?? [];
+        $this->stockLastPage = $data['pagination']['last_page'] ?? 1;
+
+        if ($this->stockSort === 'avg_sales') {
+            $this->sortStockItemsByAvgSales();
+        }
+    }
+
+    public function updatedStockSearch(): void
+    {
+        $this->resetApiError();
+        $this->stockPage = 1;
+        $this->loadStock();
+    }
+
+    public function selectStockCategory(?int $id): void
+    {
+        $this->resetApiError();
+        $this->stockCategoryId = $id;
+        $this->stockCatOpen = false;
+        $this->stockCategorySearch = '';
+        $this->stockPage = 1;
+        $this->loadStock();
+    }
+
+    public function toggleStockCategoryDropdown(): void
+    {
+        $this->stockCatOpen = ! $this->stockCatOpen;
+        $this->stockCategorySearch = '';
+    }
+
+    public function toggleStockHideInactive(): void
+    {
+        $this->resetApiError();
+        $this->stockHideInactive = ! $this->stockHideInactive;
+        $this->stockPage = 1;
+        $this->loadStock();
+    }
+
+    public function toggleStockHideOOS(): void
+    {
+        $this->resetApiError();
+        $this->stockHideOOS = ! $this->stockHideOOS;
+        $this->stockPage = 1;
+        $this->loadStock();
+    }
+
+    public function setStockSort(string $column): void
+    {
+        if ($this->stockSort === $column) {
+            $this->stockDir = $this->stockDir === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->stockSort = $column;
+            $this->stockDir = 'asc';
+        }
+
+        if (in_array($column, self::SERVER_SORTABLE_COLUMNS, true)) {
+            $this->resetApiError();
+            $this->stockPage = 1;
+            $this->loadStock();
+        } else {
+            // avg_sales: no server-side sort (see loadStock()) — reorder the
+            // already-loaded page client-side instead of refetching.
+            $this->sortStockItemsByAvgSales();
+        }
+    }
+
+    private function sortStockItemsByAvgSales(): void
+    {
+        $dir = $this->stockDir;
+
+        usort(
+            $this->stockItems,
+            fn (array $a, array $b) => $dir === 'asc'
+                ? (($a['average_monthly_sales'] ?? 0) <=> ($b['average_monthly_sales'] ?? 0))
+                : (($b['average_monthly_sales'] ?? 0) <=> ($a['average_monthly_sales'] ?? 0))
+        );
+    }
+
+    public function stockPagePrev(): void
+    {
+        if ($this->stockPage > 1) {
+            $this->resetApiError();
+            $this->stockPage--;
+            $this->loadStock();
+        }
+    }
+
+    public function stockPageNext(): void
+    {
+        if ($this->stockPage < $this->stockLastPage) {
+            $this->resetApiError();
+            $this->stockPage++;
+            $this->loadStock();
+        }
+    }
+
+    public function selectStockItem(int $id): void
+    {
+        $this->navigate('/stock/item/product/'.$id);
     }
 
     /**

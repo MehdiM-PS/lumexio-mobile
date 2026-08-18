@@ -47,6 +47,81 @@
             </row>
         @endif
 
+        <text class="text-base font-bold text-theme-on-surface pt-2">Stock &amp; réapprovisionnement</text>
+
+        <outlined-text-input ref="stock-search-input" native:model.debounce.400ms="stockSearch" placeholder="Rechercher par nom ou référence" />
+
+        <column class="w-full gap-1">
+            <pressable ref="stock-category-dropdown-toggle" class="w-full flex-row items-center rounded-lg bg-theme-surface-variant px-3 py-[10]" @press="toggleStockCategoryDropdown">
+                <text class="flex-1 text-sm font-semibold text-theme-on-surface">
+                    {{ $stockCategoryId !== null ? (collect($stockCategories)->firstWhere('id', $stockCategoryId)['name'] ?? 'Catégorie') : 'Toutes les catégories' }}
+                </text>
+            </pressable>
+
+            @if ($stockCatOpen)
+                <column ref="stock-category-dropdown" class="w-full gap-1 rounded-lg bg-theme-surface border border-theme-outline p-2">
+                    <outlined-text-input ref="stock-category-search-input" native:model.debounce.200ms="stockCategorySearch" placeholder="Rechercher une catégorie" />
+
+                    <pressable ref="stock-category-option-all" class="w-full px-3 py-[10]" @press="selectStockCategory(null)">
+                        <text class="text-sm font-semibold text-theme-on-surface">Toutes les catégories</text>
+                    </pressable>
+                    @foreach ($this->filteredStockCategories() as $category)
+                        <pressable ref="stock-category-option-{{ $category['id'] }}" class="w-full px-3 py-[10]" @press="selectStockCategory({{ $category['id'] }})">
+                            <text class="text-sm font-semibold text-theme-on-surface">{{ $category['name'] }}</text>
+                        </pressable>
+                    @endforeach
+                </column>
+            @endif
+        </column>
+
+        <row class="w-full items-center justify-between rounded-lg bg-theme-surface-variant px-3 py-[10]">
+            <text class="text-sm font-semibold text-theme-on-surface">Masquer les produits inactifs</text>
+            <toggle ref="stock-toggle-hide-inactive" a11y-label="Masquer les produits inactifs" :value="$stockHideInactive" @change="toggleStockHideInactive" />
+        </row>
+        <row class="w-full items-center justify-between rounded-lg bg-theme-surface-variant px-3 py-[10]">
+            <text class="text-sm font-semibold text-theme-on-surface">Masquer les produits en rupture</text>
+            <toggle ref="stock-toggle-hide-oos" a11y-label="Masquer les produits en rupture" :value="$stockHideOOS" @change="toggleStockHideOOS" />
+        </row>
+
+        <column class="w-full gap-0 rounded-lg bg-theme-surface border border-theme-outline">
+            <row class="w-full justify-between px-3 py-[8]">
+                <pressable ref="stock-sort-name" class="flex-1" @press="setStockSort('name')">
+                    <text class="text-xs font-bold text-theme-on-surface-variant">Produit{{ $stockSort === 'name' ? ($stockDir === 'asc' ? ' ↑' : ' ↓') : '' }}</text>
+                </pressable>
+                <pressable ref="stock-sort-stock" @press="setStockSort('stock')">
+                    <text class="text-xs font-bold text-theme-on-surface-variant">Stock{{ $stockSort === 'stock' ? ($stockDir === 'asc' ? ' ↑' : ' ↓') : '' }}</text>
+                </pressable>
+                <pressable ref="stock-sort-avg-sales" @press="setStockSort('avg_sales')">
+                    <text class="text-xs font-bold text-theme-on-surface-variant">Ventes moy.{{ $stockSort === 'avg_sales' ? ($stockDir === 'asc' ? ' ↑' : ' ↓') : '' }}</text>
+                </pressable>
+                <pressable ref="stock-sort-days-left" @press="setStockSort('days_left')">
+                    <text class="text-xs font-bold text-theme-on-surface-variant">Jours restants{{ $stockSort === 'days_left' ? ($stockDir === 'asc' ? ' ↑' : ' ↓') : '' }}</text>
+                </pressable>
+            </row>
+
+            @forelse ($stockItems as $item)
+                <pressable ref="stock-row-{{ $item['id'] }}" class="w-full flex-row items-center justify-between border-t border-theme-outline px-3 py-[10]" @press="selectStockItem({{ $item['id'] }})">
+                    <column class="gap-0">
+                        <text class="text-sm font-bold text-theme-on-surface">{{ $item['name'] ?? '' }}</text>
+                        <text class="text-xs text-theme-on-surface-variant">{{ $item['reference'] ?? '' }}</text>
+                    </column>
+                    <text class="text-sm font-semibold text-theme-on-surface">{{ $item['quantity'] ?? 0 }}</text>
+                    <text class="text-sm text-theme-on-surface">{{ $item['average_monthly_sales'] ?? 0 }}</text>
+                    <text class="text-sm font-semibold text-theme-on-surface">{{ isset($item['days_until_stockout']) ? $item['days_until_stockout'].' j' : '—' }}</text>
+                </pressable>
+            @empty
+                <text ref="stock-empty" class="px-3 py-[16] text-center text-sm text-theme-on-surface-variant">Aucun produit ne correspond aux filtres.</text>
+            @endforelse
+        </column>
+
+        <row class="w-full items-center justify-between">
+            <text class="text-xs font-semibold text-theme-on-surface-variant">Page {{ $stockPage }} / {{ $stockLastPage }}</text>
+            <row class="gap-2">
+                <button ref="stock-page-prev" variant="ghost" size="sm" @press="stockPagePrev" :disabled="$stockPage <= 1">Précédent</button>
+                <button ref="stock-page-next" variant="ghost" size="sm" @press="stockPageNext" :disabled="$stockPage >= $stockLastPage">Suivant</button>
+            </row>
+        </row>
+
         <outlined-text-input ref="forecast-product-search" native:model.debounce.400ms="productSearch" label="Rechercher un produit" placeholder="Nom ou référence" />
 
         @if (count($productResults) > 0)
