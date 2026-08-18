@@ -1,8 +1,13 @@
 <?php
 
 use App\NativeComponents\Screens\Sales;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Testing\Native;
+
+afterEach(function () {
+    Carbon::setTestNow();
+});
 
 function fakeSalesEndpoints(array $overrides = [], ?string $error = null): void
 {
@@ -60,12 +65,14 @@ it('sends the correct period key for each pill', function ($key) {
 it('shows the metrics grid with current values and colored deltas', function () {
     fakeSalesEndpoints();
 
+    // Mock (line 246, e.g. salesMetrics[0].delta): "+12,0% vs période -1" —
+    // one decimal and the "vs période -1" suffix, not a bare "+12%".
     Native::visit('/sales')
         ->assertSee('89 400,00 €')
         ->assertSee('612')
         ->assertSee('146,00 €')
         ->assertSee('89')
-        ->assertSee('+12%');
+        ->assertSee('+12,0% vs période -1');
 });
 
 it('shows the comparison table by default (compareEnabled starts true)', function () {
@@ -74,6 +81,55 @@ it('shows the comparison table by default (compareEnabled starts true)', functio
     Native::visit('/sales')
         ->assertSee('Actuelle vs période -1')
         ->assertSee('79 800,00 €');
+});
+
+it('nests a colored delta under the previous-period value in the comparison table', function () {
+    // Mock (line 261): the "Période -1" cell renders the raw previous value
+    // AND a bold, colored delta line beneath it — not the previous value
+    // alone.
+    fakeSalesEndpoints();
+
+    $tree = Native::test(Sales::class)->tree();
+
+    $delta = findNodeByRef($tree, 'sales-compare-0-delta');
+    expect($delta)->not->toBeNull();
+    expect($delta['props']['text'] ?? null)->toBe('+12,0%');
+    expect($delta['props']['color'] ?? null)->toBe(theme('success'));
+});
+
+it('shows the actual calendar date range for the selected period next to Comparer', function () {
+    // Mock (line 674, salesPeriodDefs.month.range): "01 – 17 août 2026" for
+    // the "month" period when today is 2026-08-17.
+    Carbon::setTestNow(Carbon::parse('2026-08-17'));
+    fakeSalesEndpoints();
+
+    $screen = Native::test(Sales::class);
+    $screen->call('setSalesPeriod', 'month');
+
+    expect($screen->instance()->salesDateRangeLabel())->toBe('01 – 17 août 2026');
+});
+
+it('shows a bare year for the last_year period', function () {
+    // Mock (line 677): salesPeriodDefs.lastyear.range is the bare "2025" —
+    // no day/month, since the whole prior year is implied.
+    Carbon::setTestNow(Carbon::parse('2026-08-17'));
+    fakeSalesEndpoints();
+
+    $screen = Native::test(Sales::class);
+    $screen->call('setSalesPeriod', 'last_year');
+
+    expect($screen->instance()->salesDateRangeLabel())->toBe('2025');
+});
+
+it('shows the x-axis labels under the CA and basket charts', function () {
+    // Mock (lines 276-280, 292-296): each chart renders a label row under
+    // the bars using the same series labels already used for a11y-label.
+    fakeSalesEndpoints();
+
+    $tree = Native::test(Sales::class)->tree();
+
+    expect(findNodeByRef($tree, 'sales-ca-bar-0-label')['props']['text'] ?? null)->toBe('S1');
+    expect(findNodeByRef($tree, 'sales-basket-bar-0-label')['props']['text'] ?? null)->toBe('S1');
 });
 
 it('gives the comparison table columns a flex weight so they align across rows', function () {

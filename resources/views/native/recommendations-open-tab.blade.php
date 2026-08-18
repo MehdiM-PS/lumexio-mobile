@@ -26,20 +26,30 @@
 
         <column class="w-full gap-2">
             @forelse ($recommendations as $rec)
-                <column ref="reco-{{ $rec['id'] }}-card" class="w-full gap-2 rounded-lg border border-theme-outline bg-theme-surface p-4">
+                @php
+                    // Mock's priorityMeta (line 722): card border color tracks
+                    // priority, at the same destructive/accent/primary mapping
+                    // as the badge — not a flat neutral outline.
+                    $priorityBorderClass = $rec['priority'] === 'high'
+                        ? 'border-theme-destructive/40'
+                        : ($rec['priority'] === 'medium' ? 'border-theme-accent/50' : 'border-theme-primary/35');
+                @endphp
+                <column ref="reco-{{ $rec['id'] }}-card" class="w-full gap-2 rounded-lg border {{ $priorityBorderClass }} bg-theme-surface p-4">
                     <row class="w-full items-center gap-2">
                         <badge
                             ref="reco-{{ $rec['id'] }}-priority-badge"
                             label="{{ $rec['priority'] === 'high' ? 'Haute' : ($rec['priority'] === 'medium' ? 'Moyenne' : 'Basse') }}"
                             variant="{{ $rec['priority'] === 'high' ? 'destructive' : ($rec['priority'] === 'medium' ? 'accent' : 'primary') }}"
                         />
-                        <text class="flex-1 text-xs text-theme-on-surface-variant">{{ $rec['type_label'] }} · {{ $rec['freshness_label'] }}</text>
+                        {{-- Mock (line 339): type is a second badge-style pill
+                        (surface-variant bg), not text merged with freshness. --}}
+                        <text ref="reco-{{ $rec['id'] }}-type" class="text-xs font-semibold text-theme-on-surface-variant bg-theme-surface-variant rounded-full px-[9] py-[4]">{{ $rec['type_label'] }}</text>
                     </row>
 
                     <text class="text-sm font-semibold text-theme-on-surface">{{ $rec['title'] }}</text>
 
                     @if ($rec['ref'])
-                        <text ref="reco-{{ $rec['id'] }}-ref" class="text-xs text-theme-on-surface-variant">{{ $rec['ref'] }}</text>
+                        <text ref="reco-{{ $rec['id'] }}-ref" class="text-xs font-semibold text-theme-on-surface-variant bg-theme-surface-variant rounded-md px-[8] py-[3]">Réf : {{ $rec['ref'] }}</text>
                     @endif
 
                     <text class="text-sm text-theme-on-surface-variant">{{ $rec['description'] }}</text>
@@ -49,7 +59,7 @@
                             @foreach (array_chunk($rec['data_fields'], 2) as $pair)
                                 <row class="w-full gap-3">
                                     @foreach ($pair as $field)
-                                        <column class="flex-1 gap-1">
+                                        <column class="flex-1 gap-1 rounded-[10] bg-theme-surface-variant p-[11]">
                                             <text class="text-xs text-theme-on-surface-variant">{{ $field['label'] }}</text>
                                             <text class="text-sm font-semibold text-theme-on-surface">{{ $field['value'] }}</text>
                                         </column>
@@ -60,17 +70,31 @@
                     @endif
 
                     @if (! empty($rec['actions']))
-                        <column class="w-full gap-1">
-                            <text class="text-xs font-semibold text-theme-on-surface-variant">Actions recommandées</text>
-                            @foreach ($rec['actions'] as $action)
-                                <text class="text-xs text-theme-on-surface-variant">• {{ $action }}</text>
-                            @endforeach
+                        <column class="w-full gap-2 rounded-[12] bg-theme-surface-variant p-[13]">
+                            <text class="text-xs font-semibold text-theme-on-surface-variant">ACTIONS RECOMMANDÉES</text>
+                            <column class="w-full gap-1">
+                                {{-- Mock's action rows use a "⚡" glyph (line
+                                362); this app's own conventions (CLAUDE.md)
+                                forbid emoji in UI text, so a plain bullet is
+                                used instead — a deliberate, documented
+                                deviation, not an oversight. --}}
+                                @foreach ($rec['actions'] as $action)
+                                    <text class="text-xs text-theme-on-surface-variant">• {{ $action }}</text>
+                                @endforeach
+                            </column>
                         </column>
                     @endif
 
-                    <row class="w-full gap-2">
-                        <button ref="reco-{{ $rec['id'] }}-done" variant="primary" icon="checkmark" @press="markDone({{ $rec['id'] }})">Effectuée</button>
-                        <button ref="reco-{{ $rec['id'] }}-reject" variant="secondary" icon="xmark" @press="reject({{ $rec['id'] }})">Pas intéressé</button>
+                    {{-- Mock (line 368-374): freshness/activeSince sits in the
+                    card footer next to the action buttons, not merged into
+                    the top badge row. Button order is [Pas intéressé]
+                    [Effectuée] — reject before done. --}}
+                    <row class="w-full items-center justify-between mt-[2] pt-[10] border-t border-theme-outline">
+                        <text class="flex-1 text-xs text-theme-on-surface-variant">{{ $rec['freshness_label'] }}</text>
+                        <row class="gap-2">
+                            <button ref="reco-{{ $rec['id'] }}-reject" variant="secondary" icon="xmark" @press="reject({{ $rec['id'] }})">Pas intéressé</button>
+                            <button ref="reco-{{ $rec['id'] }}-done" variant="primary" icon="checkmark" @press="markDone({{ $rec['id'] }})">Effectuée</button>
+                        </row>
                     </row>
                 </column>
             @empty

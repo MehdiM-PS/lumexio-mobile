@@ -220,21 +220,36 @@ it('shows a priority badge colored by priority, using the same label vocabulary 
     expect($low['props']['label'] ?? null)->toBe('Basse');
 });
 
-it('shows the type label and freshness label next to the priority badge', function () {
+it('shows the type as its own badge-style pill next to the priority badge', function () {
+    // Mock (line 339): type is a second pill, not text merged with
+    // freshness via " · ".
     fakeRecommendationsOpenEndpoints(recommendations: [
         sampleRecommendation(['id' => 1, 'type_label' => 'Price opportunity', 'freshness_label' => 'Nouveau']),
     ]);
 
-    Native::visit('/recommendations')->assertSee('Price opportunity · Nouveau');
+    $tree = Native::test(RecommendationsOpenTab::class)->tree();
+
+    expect(findNodeByRef($tree, 'reco-1-type')['props']['text'] ?? null)->toBe('Price opportunity');
 });
 
-it('shows the product reference chip when ref is present', function () {
+it('shows the freshness label in the card footer next to the action buttons', function () {
+    // Mock (line 369): activeSince lives in the footer, not merged with
+    // the type label up top.
+    fakeRecommendationsOpenEndpoints(recommendations: [
+        sampleRecommendation(['id' => 1, 'freshness_label' => 'Active depuis 3 jours']),
+    ]);
+
+    Native::test(RecommendationsOpenTab::class)->assertSee('Active depuis 3 jours');
+});
+
+it('shows the product reference chip prefixed with "Réf :" when ref is present', function () {
+    // Mock (line 342): "Réf : {{r.ref}}", not the bare ref.
     fakeRecommendationsOpenEndpoints(recommendations: [
         sampleRecommendation(['id' => 1, 'ref' => 'SKU-CHIP-7']),
     ]);
 
     Native::test(RecommendationsOpenTab::class)
-        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'reco-1-ref' && ($n['props']['text'] ?? null) === 'SKU-CHIP-7');
+        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'reco-1-ref' && ($n['props']['text'] ?? null) === 'Réf : SKU-CHIP-7');
 });
 
 it('hides the product reference chip when ref is null', function () {
@@ -261,8 +276,9 @@ it('omits the actions section when actions is empty', function () {
         sampleRecommendation(['id' => 1, 'actions' => []]),
     ]);
 
+    // Mock (line 358): the literal copy is "ACTIONS RECOMMANDÉES" (upper case).
     Native::test(RecommendationsOpenTab::class)
-        ->assertMissingElement('text', fn (array $n): bool => ($n['props']['text'] ?? null) === 'Actions recommandées');
+        ->assertMissingElement('text', fn (array $n): bool => ($n['props']['text'] ?? null) === 'ACTIONS RECOMMANDÉES');
 });
 
 it('renders data fields as a two-column metrics grid', function () {
@@ -294,4 +310,46 @@ it('labels the action buttons Effectuée and Pas intéressé with icons', functi
     expect($done['props']['leading_icon'] ?? null)->toBe('checkmark');
     expect($reject['props']['label'] ?? null)->toBe('Pas intéressé');
     expect($reject['props']['leading_icon'] ?? null)->toBe('xmark');
+});
+
+it('orders the action buttons Pas intéressé before Effectuée, matching the mock', function () {
+    // Mock (line 371-372): [Pas intéressé] then [Effectuée] — reject comes
+    // first, unlike this file's own -done/-reject ref naming order.
+    fakeRecommendationsOpenEndpoints(recommendations: [sampleRecommendation(['id' => 1])]);
+
+    $tree = Native::test(RecommendationsOpenTab::class)->tree();
+    $buttons = collect([]);
+    $walk = function (array $n) use (&$walk, &$buttons) {
+        if ($n['type'] === 'button') {
+            $buttons->push($n['ref'] ?? null);
+        }
+        foreach ($n['children'] ?? [] as $c) {
+            $walk($c);
+        }
+    };
+    $walk($tree);
+
+    expect($buttons->values()->all())->toBe(['reco-1-reject', 'reco-1-done']);
+});
+
+it('colors each recommendation card border by priority, not a flat neutral outline', function () {
+    // Mock's priorityMeta (line 722-726): border color tracks priority at
+    // the same destructive/accent/primary mapping as the badge.
+    fakeRecommendationsOpenEndpoints(recommendations: [
+        sampleRecommendation(['id' => 1, 'priority' => 'high']),
+        sampleRecommendation(['id' => 2, 'priority' => 'medium']),
+        sampleRecommendation(['id' => 3, 'priority' => 'low']),
+    ]);
+
+    $tree = Native::test(RecommendationsOpenTab::class)->tree();
+
+    $high = findNodeByRef($tree, 'reco-1-card');
+    $medium = findNodeByRef($tree, 'reco-2-card');
+    $low = findNodeByRef($tree, 'reco-3-card');
+
+    $borderColor = fn (array $n) => $n['style']['border_color'] ?? null;
+
+    expect($borderColor($high))->not->toBeNull();
+    expect($borderColor($high))->not->toBe($borderColor($medium));
+    expect($borderColor($medium))->not->toBe($borderColor($low));
 });

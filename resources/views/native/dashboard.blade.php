@@ -30,38 +30,42 @@
         @php $heroDelta = $this->heroDeltaPercent(); @endphp
         <row class="w-full justify-between items-baseline">
             <column class="gap-1">
-                <text ref="dashboard-hero-day-label" class="text-xs text-theme-on-surface-variant">{{ $dayScope === 1 ? 'Hier' : "Aujourd'hui" }}</text>
+                <text ref="dashboard-hero-day-label" class="text-xs text-theme-on-surface-variant">CA {{ $dayScope === 1 ? "d'hier" : "aujourd'hui" }}</text>
                 <text class="text-xl font-bold text-theme-on-background" content-transition="numeric">
                     {{ number_format($metrics['revenue_today'] ?? 0, 2, ',', ' ') }} €
                 </text>
             </column>
             @if ($heroDelta !== null)
                 <text ref="dashboard-hero-delta" class="text-sm font-semibold {{ $heroDelta >= 0 ? 'text-theme-success' : 'text-theme-destructive' }}">
-                    {{ $heroDelta >= 0 ? '+' : '' }}{{ number_format($heroDelta, 0, ',', ' ') }}%
+                    {{ $heroDelta >= 0 ? '↑' : '↓' }} {{ number_format(abs($heroDelta), 0, ',', ' ') }}%
                 </text>
             @endif
         </row>
         <text class="text-xs text-theme-on-surface-variant">vs prévision du jour</text>
 
-        <row class="w-full gap-3">
-            <column class="flex-1 gap-1 rounded-lg bg-theme-surface-variant p-4">
+        {{-- Mock's kpis array spans "Prévision 30j" across both grid columns
+        (`grid-column: span 2`) so it's alone on row 1, with "Ruptures
+        prévues" and "Clients VIP" sharing row 2 — not the 2-up/1-alone
+        split this used to render. --}}
+        <row ref="dashboard-kpi-row-forecast" class="w-full">
+            <column class="flex-1 gap-1 rounded-lg bg-theme-surface border border-theme-outline p-4">
                 <text class="text-xs text-theme-on-surface-variant">Prévision 30j</text>
                 <text ref="dashboard-kpi-forecast-30d" class="text-xl font-bold text-theme-on-surface" content-transition="numeric">
                     {{ number_format($this->forecast30d(), 0, ',', ' ') }} €
                 </text>
                 <text class="text-xs text-theme-on-surface-variant">Confiance {{ $this->forecastConfidence() }}%</text>
             </column>
-            <column class="flex-1 gap-1 rounded-lg bg-theme-surface-variant p-4">
+        </row>
+
+        <row ref="dashboard-kpi-row-secondary" class="w-full gap-3">
+            <column class="flex-1 gap-1 rounded-lg bg-theme-surface border border-theme-outline p-4">
                 <text class="text-xs text-theme-on-surface-variant">Ruptures prévues</text>
                 <text ref="dashboard-kpi-critical-stock" class="text-xl font-bold text-theme-on-surface" content-transition="numeric">
                     {{ $this->criticalStockCount() }}
                 </text>
-                <text class="text-xs text-theme-on-surface-variant">Sous 7 jours</text>
+                <text class="text-xs text-theme-accent">Sous 7 jours</text>
             </column>
-        </row>
-
-        <row class="w-full">
-            <column class="flex-1 gap-1 rounded-lg bg-theme-surface-variant p-4">
+            <column class="flex-1 gap-1 rounded-lg bg-theme-surface border border-theme-outline p-4">
                 <text class="text-xs text-theme-on-surface-variant">Clients VIP</text>
                 <text ref="dashboard-kpi-vip" class="text-xl font-bold text-theme-on-surface" content-transition="numeric">
                     {{ $this->vipCount() }}
@@ -78,11 +82,14 @@
         </row>
         <column class="w-full gap-2">
             @forelse ($recentAlerts as $alert)
-                <row class="w-full items-start gap-2 rounded-lg bg-theme-surface-variant px-4 py-[10]">
+                <row class="w-full items-start gap-2 rounded-lg bg-theme-surface border border-theme-outline px-4 py-[10]">
                     <column class="h-[8] w-[8] rounded-full {{ ($alert['severity'] ?? 'info') === 'critical' ? 'bg-theme-destructive' : (($alert['severity'] ?? 'info') === 'warning' ? 'bg-theme-accent' : 'bg-theme-primary') }} mt-[6]" />
                     <column class="flex-1 gap-0">
                         <text class="text-sm font-semibold text-theme-on-surface">{{ $alert['title'] ?? '' }}</text>
                         <text class="text-xs text-theme-on-surface-variant">{{ $alert['message'] ?? '' }}</text>
+                        @if (! empty($alert['created_at']))
+                            <text class="text-xs text-theme-on-surface-variant">{{ \Carbon\Carbon::parse($alert['created_at'])->format('d/m/Y H:i') }}</text>
+                        @endif
                     </column>
                 </row>
             @empty

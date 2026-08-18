@@ -5,6 +5,8 @@ namespace App\NativeComponents\Screens;
 use App\NativeComponents\Concerns\HandlesApiErrors;
 use App\NativeComponents\Concerns\HasHeaderChrome;
 use App\Services\LumexioApi;
+use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\View\View;
 use Native\Mobile\Edge\NativeComponent;
 
@@ -92,6 +94,71 @@ class Sales extends NativeComponent
     public function periodOptions(): array
     {
         return self::PERIOD_LABELS;
+    }
+
+    /**
+     * The actual calendar date range for the selected period, e.g.
+     * "01 – 17 août 2026" — mirrors the mock's `salesDateRange` (line 232),
+     * shown next to the Comparer toggle, distinct from periodLabel()'s
+     * friendly "Ce mois" shown under the title.
+     *
+     * Live-computed off today() rather than the mock's own hardcoded
+     * example strings: those are static illustrative literals for a demo,
+     * not values a real, date-driven screen should freeze forever. French
+     * month names come from Carbon's bundled 'fr' translations (no app
+     * locale/lang-file setup needed) — set only on the instances used here,
+     * not globally via Carbon::setLocale(), so this has no side effect on
+     * any other screen's date formatting.
+     *
+     * Deliberately does not replicate the mock's own inconsistent month
+     * abbreviation in its example strings (full "août" for the current/
+     * to-date periods, abbreviated "juil." for the fully-past "Mois préc."
+     * example) — those are two different hardcoded literals, not a
+     * documented rule, so full month names are used everywhere here.
+     */
+    public function salesDateRangeLabel(): string
+    {
+        $today = Carbon::today();
+
+        if ($this->salesPeriod === 'last_year') {
+            return $today->copy()->subYear()->format('Y');
+        }
+
+        [$start, $end] = match ($this->salesPeriod) {
+            'today' => [$today, $today],
+            'yesterday' => [$today->copy()->subDay(), $today->copy()->subDay()],
+            'week' => [$today->copy()->startOfWeek(), $today],
+            'last_week' => [
+                $today->copy()->subWeek()->startOfWeek(),
+                $today->copy()->subWeek()->endOfWeek(),
+            ],
+            'month' => [$today->copy()->startOfMonth(), $today],
+            'last_month' => [
+                $today->copy()->subMonthNoOverflow()->startOfMonth(),
+                $today->copy()->subMonthNoOverflow()->endOfMonth(),
+            ],
+            'year' => [$today->copy()->startOfYear(), $today],
+            default => [$today, $today],
+        };
+
+        return $this->formatDateRange($start, $end);
+    }
+
+    private function formatDateRange(CarbonInterface $start, CarbonInterface $end): string
+    {
+        if ($start->isSameDay($end)) {
+            return $start->locale('fr')->translatedFormat('d F Y');
+        }
+
+        if ($start->isSameMonth($end)) {
+            return $start->format('d').' – '.$end->locale('fr')->translatedFormat('d F Y');
+        }
+
+        if ($start->isSameYear($end)) {
+            return $start->locale('fr')->translatedFormat('d F').' – '.$end->locale('fr')->translatedFormat('d F Y');
+        }
+
+        return $start->locale('fr')->translatedFormat('d F Y').' – '.$end->locale('fr')->translatedFormat('d F Y');
     }
 
     /**

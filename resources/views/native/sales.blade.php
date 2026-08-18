@@ -15,33 +15,39 @@
             @endforeach
         </scroll-view>
 
+        {{-- Mock (line 231-239): the date-range text and the Comparer
+        label+toggle share one justify-between row, with Comparer grouped
+        on the right — not "Comparer" alone on the left with the toggle. --}}
         <row class="w-full justify-between items-center">
-            <text class="text-xs text-theme-on-surface-variant">Comparer</text>
-            <toggle ref="sales-compare-toggle" a11y-label="Comparer" native:model="compareEnabled" />
+            <text ref="sales-date-range" class="text-xs font-bold text-theme-on-surface-variant">{{ $this->salesDateRangeLabel() }}</text>
+            <row class="items-center gap-2">
+                <text class="text-sm font-semibold text-theme-on-surface">Comparer</text>
+                <toggle ref="sales-compare-toggle" a11y-label="Comparer" native:model="compareEnabled" />
+            </row>
         </row>
 
         <row class="w-full gap-3">
             <column class="flex-1 gap-1 rounded-lg bg-theme-surface border border-theme-outline p-[14]">
                 <text class="text-xs text-theme-on-surface-variant">Chiffre d'affaires</text>
                 <text ref="sales-metric-revenue" class="text-xl font-bold text-theme-on-background">{{ number_format($metrics['current']['revenue'], 2, ',', ' ') }} €</text>
-                <text class="text-xs font-bold {{ $metrics['changes']['revenue'] >= 0 ? 'text-theme-primary' : 'text-theme-destructive' }}">{{ $metrics['changes']['revenue'] >= 0 ? '+' : '' }}{{ number_format($metrics['changes']['revenue'], 0, ',', ' ') }}%</text>
+                <text class="text-xs font-bold {{ $metrics['changes']['revenue'] >= 0 ? 'text-theme-success' : 'text-theme-destructive' }}">{{ $metrics['changes']['revenue'] >= 0 ? '+' : '' }}{{ number_format($metrics['changes']['revenue'], 1, ',', ' ') }}% vs période -1</text>
             </column>
             <column class="flex-1 gap-1 rounded-lg bg-theme-surface border border-theme-outline p-[14]">
                 <text class="text-xs text-theme-on-surface-variant">Commandes</text>
                 <text ref="sales-metric-orders" class="text-xl font-bold text-theme-on-background">{{ number_format($metrics['current']['orders'], 0, ',', ' ') }}</text>
-                <text class="text-xs font-bold {{ $metrics['changes']['orders'] >= 0 ? 'text-theme-primary' : 'text-theme-destructive' }}">{{ $metrics['changes']['orders'] >= 0 ? '+' : '' }}{{ number_format($metrics['changes']['orders'], 0, ',', ' ') }}%</text>
+                <text class="text-xs font-bold {{ $metrics['changes']['orders'] >= 0 ? 'text-theme-success' : 'text-theme-destructive' }}">{{ $metrics['changes']['orders'] >= 0 ? '+' : '' }}{{ number_format($metrics['changes']['orders'], 1, ',', ' ') }}% vs période -1</text>
             </column>
         </row>
         <row class="w-full gap-3">
             <column class="flex-1 gap-1 rounded-lg bg-theme-surface border border-theme-outline p-[14]">
                 <text class="text-xs text-theme-on-surface-variant">Panier moyen</text>
                 <text ref="sales-metric-avg-order" class="text-xl font-bold text-theme-on-background">{{ number_format($metrics['current']['avg_order'], 2, ',', ' ') }} €</text>
-                <text class="text-xs font-bold {{ $metrics['changes']['avg_order'] >= 0 ? 'text-theme-primary' : 'text-theme-destructive' }}">{{ $metrics['changes']['avg_order'] >= 0 ? '+' : '' }}{{ number_format($metrics['changes']['avg_order'], 0, ',', ' ') }}%</text>
+                <text class="text-xs font-bold {{ $metrics['changes']['avg_order'] >= 0 ? 'text-theme-success' : 'text-theme-destructive' }}">{{ $metrics['changes']['avg_order'] >= 0 ? '+' : '' }}{{ number_format($metrics['changes']['avg_order'], 1, ',', ' ') }}% vs période -1</text>
             </column>
             <column class="flex-1 gap-1 rounded-lg bg-theme-surface border border-theme-outline p-[14]">
                 <text class="text-xs text-theme-on-surface-variant">Nouveaux clients</text>
                 <text ref="sales-metric-new-customers" class="text-xl font-bold text-theme-on-background">{{ number_format($metrics['current']['new_customers'], 0, ',', ' ') }}</text>
-                <text class="text-xs font-bold {{ $metrics['changes']['new_customers'] >= 0 ? 'text-theme-primary' : 'text-theme-destructive' }}">{{ $metrics['changes']['new_customers'] >= 0 ? '+' : '' }}{{ number_format($metrics['changes']['new_customers'], 0, ',', ' ') }}%</text>
+                <text class="text-xs font-bold {{ $metrics['changes']['new_customers'] >= 0 ? 'text-theme-success' : 'text-theme-destructive' }}">{{ $metrics['changes']['new_customers'] >= 0 ? '+' : '' }}{{ number_format($metrics['changes']['new_customers'], 1, ',', ' ') }}% vs période -1</text>
             </column>
         </row>
 
@@ -53,26 +59,27 @@
                     <text class="flex-1 text-right text-xs font-bold text-theme-on-surface-variant">Actuelle</text>
                     <text class="flex-1 text-right text-xs font-bold text-theme-on-surface-variant">Période -1</text>
                 </row>
-                <row class="w-full px-4 py-[11] border-t border-theme-outline">
-                    <text class="flex-1 text-sm font-semibold text-theme-on-surface">CA</text>
-                    <text class="flex-1 text-right text-sm font-bold text-theme-on-surface">{{ number_format($metrics['current']['revenue'], 2, ',', ' ') }} €</text>
-                    <text class="flex-1 text-right text-xs text-theme-on-surface-variant">{{ number_format($metrics['previous']['revenue'], 2, ',', ' ') }} €</text>
-                </row>
-                <row class="w-full px-4 py-[11] border-t border-theme-outline">
-                    <text class="flex-1 text-sm font-semibold text-theme-on-surface">Commandes</text>
-                    <text class="flex-1 text-right text-sm font-bold text-theme-on-surface">{{ number_format($metrics['current']['orders'], 0, ',', ' ') }}</text>
-                    <text class="flex-1 text-right text-xs text-theme-on-surface-variant">{{ number_format($metrics['previous']['orders'], 0, ',', ' ') }}</text>
-                </row>
-                <row class="w-full px-4 py-[11] border-t border-theme-outline">
-                    <text class="flex-1 text-sm font-semibold text-theme-on-surface">Panier moyen</text>
-                    <text class="flex-1 text-right text-sm font-bold text-theme-on-surface">{{ number_format($metrics['current']['avg_order'], 2, ',', ' ') }} €</text>
-                    <text class="flex-1 text-right text-xs text-theme-on-surface-variant">{{ number_format($metrics['previous']['avg_order'], 2, ',', ' ') }} €</text>
-                </row>
-                <row class="w-full px-4 py-[11] border-t border-theme-outline">
-                    <text class="flex-1 text-sm font-semibold text-theme-on-surface">Nouveaux clients</text>
-                    <text class="flex-1 text-right text-sm font-bold text-theme-on-surface">{{ number_format($metrics['current']['new_customers'], 0, ',', ' ') }}</text>
-                    <text class="flex-1 text-right text-xs text-theme-on-surface-variant">{{ number_format($metrics['previous']['new_customers'], 0, ',', ' ') }}</text>
-                </row>
+                @php
+                    // Mock (line 261): the "Période -1" cell nests the raw
+                    // previous value above a bold, colored delta line, not
+                    // the previous value alone.
+                    $compareRows = [
+                        ['label' => 'CA', 'current' => number_format($metrics['current']['revenue'], 2, ',', ' ').' €', 'previous' => number_format($metrics['previous']['revenue'], 2, ',', ' ').' €', 'change' => $metrics['changes']['revenue']],
+                        ['label' => 'Commandes', 'current' => number_format($metrics['current']['orders'], 0, ',', ' '), 'previous' => number_format($metrics['previous']['orders'], 0, ',', ' '), 'change' => $metrics['changes']['orders']],
+                        ['label' => 'Panier moyen', 'current' => number_format($metrics['current']['avg_order'], 2, ',', ' ').' €', 'previous' => number_format($metrics['previous']['avg_order'], 2, ',', ' ').' €', 'change' => $metrics['changes']['avg_order']],
+                        ['label' => 'Nouveaux clients', 'current' => number_format($metrics['current']['new_customers'], 0, ',', ' '), 'previous' => number_format($metrics['previous']['new_customers'], 0, ',', ' '), 'change' => $metrics['changes']['new_customers']],
+                    ];
+                @endphp
+                @foreach ($compareRows as $row)
+                    <row class="w-full px-4 py-[11] border-t border-theme-outline items-center">
+                        <text class="flex-1 text-sm font-semibold text-theme-on-surface">{{ $row['label'] }}</text>
+                        <text class="flex-1 text-right text-sm font-bold text-theme-on-surface">{{ $row['current'] }}</text>
+                        <column class="flex-1 items-end gap-0">
+                            <text class="text-xs text-theme-on-surface-variant">{{ $row['previous'] }}</text>
+                            <text ref="sales-compare-{{ $loop->index }}-delta" class="text-xs font-bold {{ $row['change'] >= 0 ? 'text-theme-success' : 'text-theme-destructive' }}">{{ $row['change'] >= 0 ? '+' : '' }}{{ number_format($row['change'], 1, ',', ' ') }}%</text>
+                        </column>
+                    </row>
+                @endforeach
             </column>
         @endif
 
@@ -83,6 +90,11 @@
                     <column ref="sales-ca-bar-{{ $i }}" class="flex-1 rounded-t bg-theme-primary" height="{{ $this->barHeightPx($caChart, $i, 90) }}" a11y-label="{{ $caChart['labels'][$i] ?? '' }} — {{ number_format($value, 2, ',', ' ') }} €" />
                 @endforeach
             </row>
+            <row class="w-full gap-[6] mt-[6]">
+                @foreach ($caChart['labels'] as $i => $label)
+                    <text ref="sales-ca-bar-{{ $i }}-label" class="flex-1 text-center text-[10] text-theme-on-surface-variant">{{ $label }}</text>
+                @endforeach
+            </row>
         </column>
 
         <text class="text-base font-semibold text-theme-on-background mt-[10]">Panier moyen</text>
@@ -90,6 +102,11 @@
             <row class="w-full items-end gap-[6] h-[70]">
                 @foreach ($basketChart['values'] as $i => $value)
                     <column ref="sales-basket-bar-{{ $i }}" class="flex-1 rounded-t bg-[#c9a97a]" height="{{ $this->barHeightPx($basketChart, $i, 70) }}" a11y-label="{{ $basketChart['labels'][$i] ?? '' }} — {{ number_format($value, 2, ',', ' ') }} €" />
+                @endforeach
+            </row>
+            <row class="w-full gap-[6] mt-[6]">
+                @foreach ($basketChart['labels'] as $i => $label)
+                    <text ref="sales-basket-bar-{{ $i }}-label" class="flex-1 text-center text-[10] text-theme-on-surface-variant">{{ $label }}</text>
                 @endforeach
             </row>
         </column>

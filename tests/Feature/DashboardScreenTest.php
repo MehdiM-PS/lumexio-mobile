@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\LocalState;
+use App\NativeComponents\Layouts\TabsLayout;
 use App\NativeComponents\Screens\Dashboard;
 use Carbon\Carbon;
 use Illuminate\Http\Client\ConnectionException;
@@ -237,12 +238,12 @@ it('re-fetches metrics with day=yesterday when the on-device toggle fires a real
         && ($request['day'] ?? null) === 'yesterday');
 });
 
-it('switches the hero card day label from Aujourd\'hui to Hier when dayScope changes', function () {
-    // Asserted on the label's own `ref`, not a plain assertSee('Hier') — the
+it('switches the hero card day label from CA aujourd\'hui to CA d\'hier when dayScope changes', function () {
+    // Asserted on the label's own `ref`, not a plain assertSee — the
     // button-group toggle's own :options="['Aujourd\'hui', 'Hier']" already
-    // renders the literal string "Hier" elsewhere on this screen, so a
+    // renders those literal strings elsewhere on this screen, so a
     // substring assertion would pass vacuously even if the hero label were
-    // still hardcoded to "Aujourd'hui".
+    // still hardcoded. Copy per the mockup (line 82): "CA {{dayLabelLower}}".
     // Frozen to the afternoon so the default day scope is "today" (see the
     // DAY_SWITCH_HOUR heuristic) — this test is about toggling, not defaults.
     Carbon::setTestNow(Carbon::parse('2026-08-14 15:00:00'));
@@ -251,12 +252,12 @@ it('switches the hero card day label from Aujourd\'hui to Hier when dayScope cha
     $screen = Native::visit('/dashboard');
 
     $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-hero-day-label'
-        && ($n['props']['text'] ?? null) === "Aujourd'hui");
+        && ($n['props']['text'] ?? null) === "CA aujourd'hui");
 
     $screen->call('setDayScope', 1);
 
     $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-hero-day-label'
-        && ($n['props']['text'] ?? null) === 'Hier');
+        && ($n['props']['text'] ?? null) === "CA d'hier");
 });
 
 it('fetches widgets scoped to the current day and stores them', function () {
@@ -286,7 +287,8 @@ it('shows a positive hero delta vs the day forecast', function () {
     $screen = Native::test(Dashboard::class);
 
     expect($screen->instance()->heroDeltaPercent())->toBe(12.0);
-    $screen->assertSee('+12%');
+    // Mock (line 85 / 832): "↑ 12%" — an arrow, not a "+" sign.
+    $screen->assertSee('↑ 12%');
 });
 
 it('shows a negative hero delta vs the day forecast', function () {
@@ -299,15 +301,18 @@ it('shows a negative hero delta vs the day forecast', function () {
     $screen = Native::test(Dashboard::class);
 
     expect($screen->instance()->heroDeltaPercent())->toBe(-12.0);
-    $screen->assertSee('-12%');
+    // The mock hardcodes "↑" and never demonstrates a down day, but
+    // heroDeltaPercent() can go negative — the arrow must flip, not lie.
+    $screen->assertSee('↓ 12%');
 });
 
-it('normalizes a delta that rounds to zero so it never renders as -0%', function () {
+it('normalizes a delta that rounds to zero so it never renders as a down arrow', function () {
     // ca_forecast_percent=99.8 gives a raw delta of -0.2 — without the
     // abs(...) < 0.5 normalization in heroDeltaPercent(), number_format on
-    // that raw value would render '-0%' in destructive red, which is
+    // that raw value would render a "↓ 0%" in destructive red, which is
     // cosmetically wrong (this isn't the "no forecast" case, which is
-    // already handled separately by the null gate above).
+    // already handled separately by the null gate above). heroDeltaPercent()
+    // normalizes to 0.0, and the blade's `>= 0` branch treats that as "up".
     fakeDashboardEndpoints(widgets: [
         'day' => 'today', 'date' => today()->toDateString(), 'ca_forecast_percent' => 99.8,
         'ca_forecast_predicted' => 300.0, 'avg_cart' => 45.0, 'avg_cart_comparison' => 40.0,
@@ -317,7 +322,7 @@ it('normalizes a delta that rounds to zero so it never renders as -0%', function
     $screen = Native::test(Dashboard::class);
 
     expect($screen->instance()->heroDeltaPercent())->toBe(0.0);
-    $screen->assertSee('+0%')->assertDontSee('-0%');
+    $screen->assertSee('↑ 0%')->assertDontSee('↓ 0%');
 });
 
 it('hides the hero delta when the day forecast is unavailable', function () {
@@ -359,6 +364,48 @@ it('renders the 3 new KPI cards with their sub-labels', function () {
         && ($n['props']['text'] ?? null) === '3');
     $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-kpi-at-risk'
         && ($n['props']['text'] ?? null) === '6 à risque');
+});
+
+it('lays out the KPI cards as the mock does: forecast alone on its own row, ruptures + VIP sharing the next row', function () {
+    // Mock's kpis array (line 838) gives "Prévision 30j" grid-column: span 2
+    // (full width, alone on row 1) with "Ruptures prévues" and "Clients VIP"
+    // sharing row 2 — not a 2-up/1-alone split.
+    fakeDashboardEndpoints();
+
+    $tree = Native::test(Dashboard::class, layout: TabsLayout::class)->tree();
+
+    $forecastRow = findNodeByRef($tree, 'dashboard-kpi-row-forecast');
+    $secondaryRow = findNodeByRef($tree, 'dashboard-kpi-row-secondary');
+
+    expect($forecastRow)->not->toBeNull();
+    expect($secondaryRow)->not->toBeNull();
+    expect(findNodeByRef($forecastRow, 'dashboard-kpi-forecast-30d'))->not->toBeNull();
+    expect(findNodeByRef($forecastRow, 'dashboard-kpi-critical-stock'))->toBeNull();
+    expect(findNodeByRef($secondaryRow, 'dashboard-kpi-critical-stock'))->not->toBeNull();
+    expect(findNodeByRef($secondaryRow, 'dashboard-kpi-vip'))->not->toBeNull();
+});
+
+it('colors the "Ruptures prévues" sub-label with the accent token, matching the mock\'s warning tone', function () {
+    // Mock (line 839): subColor: oklch(0.7 0.17 55) — the same hue as
+    // config('native-ui.theme.light.accent') (#EC7C0E), not the neutral
+    // on-surface-variant gray the KPI card's other sub-labels use.
+    fakeDashboardEndpoints();
+
+    $screen = Native::test(Dashboard::class);
+
+    $screen->assertElement('text', fn (array $n): bool => ($n['props']['text'] ?? null) === 'Sous 7 jours'
+        && ($n['props']['color'] ?? null) === theme('accent'));
+});
+
+it('shows the alert timestamp on each recent-alert row', function () {
+    // Mock (line 110): {{a.time}} — the recent-alert card has a third
+    // line under the title/message. Mirrors alerts.blade.php's own
+    // d/m/Y H:i formatting of created_at for consistency across screens.
+    fakeDashboardEndpoints(alerts: [
+        ['id' => 1, 'severity' => 'critical', 'title' => 'Anomalie détectée', 'message' => 'Ventes en baisse de 34%.', 'created_at' => '2026-08-14T10:00:00+00:00'],
+    ]);
+
+    Native::visit('/dashboard')->assertSee(Carbon::parse('2026-08-14T10:00:00+00:00')->format('d/m/Y H:i'));
 });
 
 it('looks up VIP and at-risk counts by segment name, not array position', function () {
@@ -554,6 +601,17 @@ it('renders the shop switcher sheet with each shop and highlights the active one
     // test above.
     expect($row1['style']['bg_color'] ?? null)
         ->not->toBe($row2['style']['bg_color'] ?? null);
+
+    // Each shop row carries its own logo image node, per the mockup
+    // (line ~455) — same config('lumexio.asset_url') pattern as the header
+    // shop pill and Login::logoUrl().
+    expect(findNodeByRef($tree, 'shop-switcher-row-shop-1-logo'))->not->toBeNull();
+    expect(findNodeByRef($tree, 'shop-switcher-row-shop-2-logo'))->not->toBeNull();
+
+    // Mock (line 464): a presentational "+ Ajouter une boutique" affordance
+    // below the shop list — no onClick in the mock either, so no wired
+    // action is required here for parity.
+    expect(findNodeByRef($tree, 'shop-switcher-add-shop'))->not->toBeNull();
 });
 
 it('renders the account sheet with the user name and email', function () {

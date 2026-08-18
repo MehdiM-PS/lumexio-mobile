@@ -92,3 +92,26 @@ it('renders no alert badge when unread_alert_count is zero', function () {
     expect(findNodeByRef($tree, 'header-alert-button'))->not->toBeNull();
     expect(findNodeByRef($tree, 'header-alert-badge'))->toBeNull();
 });
+
+it('renders the shop-pill logo image', function () {
+    fakeTabsLayoutEndpoints();
+
+    $screen = Native::test(Dashboard::class, layout: TabsLayout::class);
+
+    expect(findNodeByRef($screen->tree(), 'header-shop-logo'))->not->toBeNull();
+});
+
+it('positions the alert badge as an overlapping corner badge on the bell button, not an inline pill', function () {
+    fakeTabsLayoutEndpoints();
+    LocalState::current()->update(['unread_alert_count' => 2]);
+
+    $screen = Native::test(Dashboard::class, layout: TabsLayout::class);
+
+    $badge = findNodeByRef($screen->tree(), 'header-alert-badge');
+    expect($badge)->not->toBeNull();
+    // position_type 1 = absolute (see TailwindParser's `absolute` class) —
+    // proves this is an overlapping corner badge, not the old inline pill
+    // laid out in normal (relative) flow next to the bell icon.
+    expect($badge['layout']['position_type'] ?? null)->toBe(1);
+    expect($badge['layout']['position'] ?? null)->toBe([-3.0, -3.0, 0.0, 0.0]);
+});
