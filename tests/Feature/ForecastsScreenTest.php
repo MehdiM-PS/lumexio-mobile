@@ -17,15 +17,19 @@ use Native\Mobile\Testing\Native;
 //
 // Also fakes the two stock-section endpoints (load() now calls
 // loadStockCategories() + loadStock() right after the /forecasts fetch) —
-// added for Task 6. '*/products?*sort=*' is deliberately narrower than a
-// blanket '*/products*' pattern: loadStock() always sends a `sort` param
-// (default 'name'), but the pre-existing per-product forecast search
-// (updatedProductSearch(), GET /products?search=...&per_page=10) never
-// does, so this pattern never matches it — a test's own later, more
-// specific '*/products?search=*' Http::fake() override (several already
-// exist below) is therefore never shadowed by this default, since
-// Http::fake() stubs are matched in registration order (first match wins)
-// and this default flatly doesn't match that URL in the first place.
+// added for Task 6. '*/products?*per_page=20*' is deliberately narrower
+// than a blanket '*/products*' pattern: loadStock() always sends
+// per_page=20 (a fixed literal, unlike `sort`, which is *omitted* — not
+// just defaulted — whenever the active stockSort isn't server-sortable,
+// e.g. while avg_sales is the active sort; per_page=20 is therefore the
+// one query fragment every loadStock() request carries unconditionally).
+// The pre-existing per-product forecast search (updatedProductSearch(),
+// GET /products?search=...&per_page=10) always sends per_page=10 instead,
+// so this pattern never matches it — a test's own later, more specific
+// '*/products?search=*' Http::fake() override (several already exist
+// below) is therefore never shadowed by this default, since Http::fake()
+// stubs are matched in registration order (first match wins) and this
+// default flatly doesn't match that URL in the first place.
 function fakeForecastsEndpoint(
     array $historical = [],
     array $forecasts = [],
@@ -37,7 +41,7 @@ function fakeForecastsEndpoint(
 ): void {
     $stockStubs = [
         '*/products/categories*' => Http::response(['categories' => $stockCategories], 200),
-        '*/products?*sort=*' => Http::response([
+        '*/products?*per_page=20*' => Http::response([
             'products' => $stockProducts,
             'pagination' => $stockPagination ?? ['current_page' => 1, 'last_page' => 1, 'per_page' => 20, 'total' => count($stockProducts)],
         ], 200),
@@ -320,7 +324,7 @@ it('is wrapped in a refreshable that calls refresh on pull-to-refresh', function
             ->push([...$baseResponse, 'historical' => [sampleHistoricalDay()], 'forecasts' => [sampleForecastDay()]], 200)
             ->push([...$baseResponse, 'historical' => [sampleHistoricalDay(['date' => today()->addDay()->format('Y-m-d')])], 'forecasts' => [sampleForecastDay()]], 200),
         '*/products/categories*' => Http::response(['categories' => []], 200),
-        '*/products?*sort=*' => Http::response(['products' => [], 'pagination' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 20, 'total' => 0]], 200),
+        '*/products?*per_page=20*' => Http::response(['products' => [], 'pagination' => ['current_page' => 1, 'last_page' => 1, 'per_page' => 20, 'total' => 0]], 200),
     ]);
 
     $screen = Native::test(Forecasts::class);
@@ -522,6 +526,54 @@ it('never sends sort=avg_sales to the API and reorders the loaded page client-si
     $screen->call('setStockSort', 'avg_sales');
     expect(array_column($screen->get('stockItems'), 'id'))->toBe([3, 1, 2]); // descending
     Http::assertNothingSent();
+});
+
+// Regression for the actual bug: setStockSort('avg_sales') itself never hits
+// the network (the test above), so it can't be the thing that would have
+// 422'd against the plan's original draft. The real bug lives in the *next*
+// reload while avg_sales is still the active sort — pagination, a toggle, or
+// a search all call loadStock() again, and the draft's loadStock() would
+// have sent the stale `sort=avg_sales` value straight through, which
+// GET /products rejects (only name|stock|days_left are valid server-side,
+// per lumexio-web-app's ProductsController::index()). This drives a real
+// reload (stockPageNext()) with avg_sales active and asserts both that no
+// `sort` param referencing avg_sales is sent, and that the freshly-reloaded
+// page comes back re-sorted by average_monthly_sales — proving
+// sortStockItemsByAvgSales() is re-applied after every reload, not just on
+// the original setStockSort() call.
+it('keeps avg_sales sorting client-side across a reload triggered while it is the active sort', function () {
+    $unsorted = [
+        sampleStockProduct(['id' => 1, 'name' => 'A', 'average_monthly_sales' => 5.0]),
+        sampleStockProduct(['id' => 2, 'name' => 'B', 'average_monthly_sales' => 1.0]),
+        sampleStockProduct(['id' => 3, 'name' => 'C', 'average_monthly_sales' => 9.0]),
+    ];
+
+    fakeForecastsEndpoint(
+        stockProducts: $unsorted,
+        stockPagination: ['current_page' => 1, 'last_page' => 2, 'per_page' => 20, 'total' => 6],
+    );
+
+    $screen = Native::test(Forecasts::class);
+    $screen->call('setStockSort', 'avg_sales');
+    expect(array_column($screen->get('stockItems'), 'id'))->toBe([2, 1, 3]); // ascending, set locally, no request yet
+
+    // Trigger a real reload while avg_sales is still active. The stub
+    // returns the same unsorted fixture regardless of page/params — what
+    // matters is (a) what was sent, and (b) that the freshly-assigned page
+    // is re-sorted rather than left in the stub's raw (unsorted) order.
+    $screen->call('stockPageNext');
+
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/products?')
+        && ($request['page'] ?? null) === 2
+        && ! isset($request['sort'])); // omitted entirely, not merely != 'avg_sales'
+
+    Http::assertNotSent(fn ($request) => str_contains((string) $request->url(), '/products?')
+        && ($request['sort'] ?? null) === 'avg_sales');
+
+    // Still ascending by average_monthly_sales after the reload — if
+    // sortStockItemsByAvgSales() weren't re-applied post-reload, this would
+    // be [1, 2, 3] (the stub's raw, unsorted order) instead.
+    expect(array_column($screen->get('stockItems'), 'id'))->toBe([2, 1, 3]);
 });
 
 it('paginates stock results, disabling prev on the first page and next on the last', function () {
