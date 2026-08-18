@@ -41,8 +41,24 @@ class RecommendationsOpenTab extends NativeComponent
         $this->stats = $data['stats'] ?? $this->stats;
     }
 
-    public function setPriorityFilter(string $priority): void
+    /**
+     * `$selected` is the chip's emitted on_change value, appended by the
+     * dispatcher after the callback's own args. Each priority is its own
+     * independent `<chip>` (no shared native:model group exists for
+     * chips), so switching priorities fires this callback twice: once
+     * with `selected: true` from the tapped chip, and once with
+     * `selected: false` from the previously-active chip's own echo when
+     * the re-render pushes its new, deselected value back down to it.
+     * Without this guard, that `false` echo would blindly reassign
+     * $priorityFilter back to that chip's own value, fighting the
+     * just-made selection in an oscillating loop.
+     */
+    public function setPriorityFilter(string $priority, bool $selected = true): void
     {
+        if (! $selected) {
+            return;
+        }
+
         $this->priorityFilter = $priority;
         $this->refresh();
     }

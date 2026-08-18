@@ -52,10 +52,12 @@
         <outlined-text-input ref="stock-search-input" native:model.debounce.400ms="stockSearch" placeholder="Rechercher par nom ou référence" />
 
         <column class="w-full gap-1">
-            <pressable ref="stock-category-dropdown-toggle" class="w-full flex-row items-center rounded-lg bg-theme-surface-variant px-3 py-[10]" @press="toggleStockCategoryDropdown">
-                <text class="flex-1 text-sm font-semibold text-theme-on-surface">
-                    {{ $stockCategoryId !== null ? (collect($stockCategories)->firstWhere('id', $stockCategoryId)['name'] ?? 'Catégorie') : 'Toutes les catégories' }}
-                </text>
+            <pressable ref="stock-category-dropdown-toggle" class="w-full rounded-lg bg-theme-surface-variant px-3 py-[10]" @press="toggleStockCategoryDropdown">
+                <row class="w-full items-center">
+                    <text class="flex-1 text-sm font-semibold text-theme-on-surface">
+                        {{ $stockCategoryId !== null ? (collect($stockCategories)->firstWhere('id', $stockCategoryId)['name'] ?? 'Catégorie') : 'Toutes les catégories' }}
+                    </text>
+                </row>
             </pressable>
 
             @if ($stockCatOpen)
@@ -76,54 +78,79 @@
 
         <row class="w-full items-center justify-between rounded-lg bg-theme-surface-variant px-3 py-[10]">
             <text class="text-sm font-semibold text-theme-on-surface">Masquer les produits inactifs</text>
-            <toggle ref="stock-toggle-hide-inactive" a11y-label="Masquer les produits inactifs" :value="$stockHideInactive" @change="toggleStockHideInactive" />
+            <toggle ref="stock-toggle-hide-inactive" a11y-label="Masquer les produits inactifs" native:model="stockHideInactive" />
         </row>
         <row class="w-full items-center justify-between rounded-lg bg-theme-surface-variant px-3 py-[10]">
             <text class="text-sm font-semibold text-theme-on-surface">Masquer les produits en rupture</text>
-            <toggle ref="stock-toggle-hide-oos" a11y-label="Masquer les produits en rupture" :value="$stockHideOOS" @change="toggleStockHideOOS" />
+            <toggle ref="stock-toggle-hide-oos" a11y-label="Masquer les produits en rupture" native:model="stockHideOOS" />
         </row>
 
-        {{-- Column widths approximate the mockup's `1.7fr 0.8fr 1fr 1fr 1.1fr`
-        grid: this UI framework's TailwindParser has no fractional flex-grow
-        (only the fixed `flex-1` utility) and no percentage width (`w-[N]`
-        is an absolute size), so an exact fr-ratio grid isn't representable
-        — same category of gap as shop-switcher-sheet.blade.php's dashed-
-        border note. Produit keeps `flex-1` (it carries the largest share);
-        the other four get fixed widths in the same relative order as their
-        fr values (0.8 : 1 : 1 : 1.1). The header row and each data row use
-        the identical width class per column so the two line up. --}}
-        <column class="w-full gap-0 rounded-lg bg-theme-surface border border-theme-outline">
-            <row class="w-full gap-2 px-3 py-[8]">
-                <pressable ref="stock-sort-name" class="flex-1" @press="setStockSort('name')">
-                    <text class="text-xs font-bold uppercase text-theme-on-surface-variant">Produit{{ $stockSort === 'name' ? ($stockDir === 'asc' ? ' ↑' : ' ↓') : '' }}</text>
+        {{-- A narrow phone width can't fit a 5-column table without either
+        cramming cell text into unreadable slivers or letting long product
+        names/references wrap and collide with neighboring cells — so stock
+        items render as one field per line inside a card instead of table
+        columns, and sorting moves to a horizontal row of tappable pills
+        mirroring the mockup's chip filters above. Each pill is a plain
+        `<pressable>` (not a `<chip>`) bound via `@press`, not `@change` —
+        `<chip>`'s two-way native:model binding round-trips through the
+        client's own local selected state (see the toggle/chip echo-loop
+        fixes elsewhere on this screen and in Sales/Alerts/Recommendations),
+        which would fight the "tap the active column again to flip
+        direction" behavior setStockSort() relies on. A plain press has no
+        such echo, so setStockSort() keeps working exactly as before. --}}
+        <text class="text-xs font-bold text-theme-on-surface-variant">Trier par</text>
+        <scroll-view horizontal class="gap-2">
+            @php
+                $stockSortOptions = [
+                    'name' => 'Nom',
+                    'stock' => 'Stock',
+                    'avg_sales' => 'Vente moy./mois',
+                    'days_left' => 'Jrs avant rupture',
+                ];
+            @endphp
+            @foreach ($stockSortOptions as $column => $label)
+                <pressable
+                    ref="stock-sort-{{ $column === 'avg_sales' ? 'avg-sales' : ($column === 'days_left' ? 'days-left' : $column) }}"
+                    class="rounded-full px-[12] py-[7] {{ $stockSort === $column ? 'bg-theme-primary' : 'bg-theme-surface-variant' }}"
+                    @press="setStockSort('{{ $column }}')"
+                >
+                    <text class="text-xs font-semibold {{ $stockSort === $column ? 'text-theme-on-primary' : 'text-theme-on-surface' }}">{{ $label }}{{ $stockSort === $column ? ($stockDir === 'asc' ? ' ↑' : ' ↓') : '' }}</text>
                 </pressable>
-                <pressable ref="stock-sort-stock" class="w-[40]" @press="setStockSort('stock')">
-                    <text class="text-xs font-bold uppercase text-theme-on-surface-variant">Stock{{ $stockSort === 'stock' ? ($stockDir === 'asc' ? ' ↑' : ' ↓') : '' }}</text>
-                </pressable>
-                <pressable ref="stock-sort-avg-sales" class="w-[52]" @press="setStockSort('avg_sales')">
-                    <text class="text-xs font-bold uppercase text-theme-on-surface-variant">Vente moy./mois{{ $stockSort === 'avg_sales' ? ($stockDir === 'asc' ? ' ↑' : ' ↓') : '' }}</text>
-                </pressable>
-                {{-- Demande 30j: data-only, not sortable — the /products
-                endpoint has no server-side sort for it (SERVER_SORTABLE_COLUMNS)
-                and there's no client-side-sort need like avg_sales. Plain
-                text, no pressable/@press and no sort arrow, so it doesn't
-                present as tappable when it isn't. --}}
-                <text class="w-[52] text-xs font-bold uppercase text-theme-on-surface-variant">Demande 30j</text>
-                <pressable ref="stock-sort-days-left" class="w-[56]" @press="setStockSort('days_left')">
-                    <text class="text-xs font-bold uppercase text-theme-on-surface-variant">Jrs avant rupture{{ $stockSort === 'days_left' ? ($stockDir === 'asc' ? ' ↑' : ' ↓') : '' }}</text>
-                </pressable>
-            </row>
+            @endforeach
+        </scroll-view>
+        {{-- Demande 30j: data-only, not sortable — the /products endpoint
+        has no server-side sort for it (SERVER_SORTABLE_COLUMNS) and there's
+        no client-side-sort need like avg_sales, so it gets no pill above;
+        it still shows on every card below. --}}
 
+        <column class="w-full gap-2">
             @forelse ($stockItems as $item)
-                <pressable ref="stock-row-{{ $item['id'] }}" class="w-full flex-row items-center gap-2 border-t border-theme-outline px-3 py-[10]" @press="selectStockItem({{ $item['id'] }})">
-                    <column class="flex-1 gap-0">
-                        <text class="text-sm font-bold text-theme-on-surface">{{ $item['name'] ?? '' }}</text>
-                        <text class="text-xs text-theme-on-surface-variant">{{ $item['reference'] ?? '' }}</text>
-                    </column>
-                    <text class="w-[40] text-sm font-semibold {{ $this->stockQuantityColorClass($item) }}">{{ $item['quantity'] ?? 0 }}</text>
-                    <text class="w-[52] text-sm text-theme-on-surface">{{ $item['average_monthly_sales'] ?? 0 }}</text>
-                    <text class="w-[52] text-sm text-theme-on-surface">{{ $item['demand_30d'] ?? 0 }}</text>
-                    <text class="w-[56] text-sm font-semibold {{ $this->stockDaysLeftColorClass($item) }}">{{ $this->stockDaysLeftText($item) }}</text>
+                <pressable
+                    ref="stock-row-{{ $item['id'] }}"
+                    class="w-full items-start gap-2 rounded-lg border border-theme-outline bg-theme-surface px-4 py-[12]"
+                    @press="selectStockItem({{ $item['id'] }})"
+                >
+                    <row class="w-full justify-between items-start">
+                        <column class="flex-1 gap-0">
+                            <text class="text-sm font-bold text-theme-on-surface">{{ $item['name'] ?? '' }}</text>
+                            <text class="text-xs text-theme-on-surface-variant">{{ $item['reference'] ?? '' }}</text>
+                        </column>
+                        <text ref="stock-row-{{ $item['id'] }}-quantity" class="text-sm font-semibold {{ $this->stockQuantityColorClass($item) }}">{{ $item['quantity'] ?? 0 }} en stock</text>
+                    </row>
+                    <row class="w-full justify-between">
+                        <column class="gap-0">
+                            <text class="text-[10] text-theme-on-surface-variant">Vente moy./mois</text>
+                            <text ref="stock-row-{{ $item['id'] }}-avg-sales" class="text-sm font-semibold text-theme-on-surface">{{ $item['average_monthly_sales'] ?? 0 }}</text>
+                        </column>
+                        <column class="gap-0">
+                            <text class="text-[10] text-theme-on-surface-variant">Demande 30j</text>
+                            <text ref="stock-row-{{ $item['id'] }}-demand" class="text-sm font-semibold text-theme-on-surface">{{ $item['demand_30d'] ?? 0 }}</text>
+                        </column>
+                        <column class="items-end gap-0">
+                            <text class="text-[10] text-theme-on-surface-variant">Jrs avant rupture</text>
+                            <text ref="stock-row-{{ $item['id'] }}-days-left" class="text-sm font-semibold {{ $this->stockDaysLeftColorClass($item) }}">{{ $this->stockDaysLeftText($item) }}</text>
+                        </column>
+                    </row>
                 </pressable>
             @empty
                 <text ref="stock-empty" class="px-3 py-[16] text-center text-sm text-theme-on-surface-variant">Aucun produit ne correspond aux filtres.</text>

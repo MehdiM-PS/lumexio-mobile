@@ -413,14 +413,34 @@ it('searches stock via the real debounced binding, resets to page 1, and sends t
         && ($request['search'] ?? null) === 'bleu');
 });
 
-it('wires both visibility toggles to the real on_change binding', function () {
+it('wires both visibility toggles to the real syncProperty binding', function () {
     fakeForecastsEndpoint();
 
     Native::test(Forecasts::class)
         ->assertElement('toggle', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-toggle-hide-inactive'
-            && ($n['props']['on_change'] ?? null) === callbackIdFor('toggleStockHideInactive'))
+            && ($n['props']['on_change'] ?? null) === callbackIdFor("__syncProperty('stockHideInactive')"))
         ->assertElement('toggle', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-toggle-hide-oos'
-            && ($n['props']['on_change'] ?? null) === callbackIdFor('toggleStockHideOOS'));
+            && ($n['props']['on_change'] ?? null) === callbackIdFor("__syncProperty('stockHideOOS')"));
+});
+
+it('keeps the hide-inactive toggle stable when it receives a redundant echo of its current value', function () {
+    // Regression test: the toggle used to be wired with a blind
+    // negate-on-change handler (:value + @change="toggleStockHideInactive"
+    // flipping the current value on every event). iOS's toggle renderer can
+    // fire a spurious on_change echo carrying the *already-current* value
+    // (e.g. reconciling its local @State against the server value on
+    // mount) — with the old blind-negate handler that echo flipped the
+    // value and produced a self-perpetuating on/off loop. native:model's
+    // syncProperty binding assigns whatever value it receives instead of
+    // negating, so an echo of the current value is a no-op.
+    fakeForecastsEndpoint();
+
+    $screen = Native::test(Forecasts::class);
+    expect($screen->get('stockHideInactive'))->toBeTrue();
+
+    $screen->toggle('stock-toggle-hide-inactive', true);
+
+    expect($screen->get('stockHideInactive'))->toBeTrue();
 });
 
 it('sends include_inactive=true when the hide-inactive toggle is switched off via the real binding', function () {
@@ -705,50 +725,31 @@ it('keeps pagination metadata intact after a failed reload, alongside the stockP
 // ── Task 7 gap-fill: pixel-audit fixes for the stock table (Demande 30j
 // column, mockup wording, color-coded urgency, page-range pagination) ──
 
-it('renders the demand_30d column between average sales and days-left', function () {
+it('shows the demand_30d value on the stock card', function () {
     fakeForecastsEndpoint(stockProducts: [sampleStockProduct(['demand_30d' => 17])]);
 
-    $tree = Native::test(Forecasts::class)->tree();
-    $row = findNodeByRef($tree, 'stock-row-1');
-
-    // Row children, in order: [0] name/reference column, [1] stock,
-    // [2] average monthly sales, [3] demand_30d, [4] days-left — this
-    // ordering is what makes "between Ventes moy. and Jours restants" true.
-    expect($row['children'][3]['props']['text'] ?? null)->toBe('17');
+    Native::test(Forecasts::class)
+        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-row-1-demand' && ($n['props']['text'] ?? null) === '17');
 });
 
-it("uses the mockup's exact header wording for the average-sales and days-left columns", function () {
-    fakeForecastsEndpoint();
-
-    $tree = Native::test(Forecasts::class)->tree();
-
-    $avgSalesHeader = findNodeByRef($tree, 'stock-sort-avg-sales');
-    $daysLeftHeader = findNodeByRef($tree, 'stock-sort-days-left');
-
-    expect($avgSalesHeader['children'][0]['props']['text'] ?? null)->toBe('Vente moy./mois');
-    expect($daysLeftHeader['children'][0]['props']['text'] ?? null)->toBe('Jrs avant rupture');
-});
-
-it('renders every stock table header uppercase via a display transform, not literal casing', function () {
-    fakeForecastsEndpoint(stockCategories: []);
-
-    $tree = Native::test(Forecasts::class)->tree();
-
-    $nameHeaderText = findNodeByRef($tree, 'stock-sort-name')['children'][0];
-    // Literal source text stays natural-cased ("Produit", not "PRODUIT") —
-    // the uppercase look comes from `text_transform`, per the mockup spec.
-    expect($nameHeaderText['props']['text'] ?? null)->toStartWith('Produit');
-    expect($nameHeaderText['props']['text_transform'] ?? null)->toBe(1);
-});
-
-it('renders the Demande 30j header as plain, non-sortable text with no sort arrow or press handler', function () {
+it("uses the mockup's exact wording for the average-sales and days-left sort pills", function () {
     fakeForecastsEndpoint();
 
     Native::test(Forecasts::class)
-        ->assertElement('text', fn (array $n): bool => ($n['props']['text'] ?? null) === 'Demande 30j' && ! isset($n['on_press']));
+        ->assertElement('text', fn (array $n): bool => ($n['props']['text'] ?? null) === 'Vente moy./mois')
+        ->assertElement('text', fn (array $n): bool => ($n['props']['text'] ?? null) === 'Jrs avant rupture');
 });
 
-it('color-codes the stock column destructive only when the product is out of stock', function () {
+it('renders the Demande 30j label on each card as plain, non-sortable text with no sort pill of its own', function () {
+    fakeForecastsEndpoint(stockProducts: [sampleStockProduct()]);
+
+    Native::test(Forecasts::class)
+        ->assertElement('text', fn (array $n): bool => ($n['props']['text'] ?? null) === 'Demande 30j' && ! isset($n['on_press']));
+
+    expect(findNodeByRef(Native::test(Forecasts::class)->tree(), 'stock-sort-demand-30d'))->toBeNull();
+});
+
+it('color-codes the stock quantity destructive only when the product is out of stock', function () {
     fakeForecastsEndpoint(stockProducts: [
         sampleStockProduct(['id' => 1, 'quantity' => 0]),
         sampleStockProduct(['id' => 2, 'quantity' => 5]),
@@ -756,35 +757,35 @@ it('color-codes the stock column destructive only when the product is out of sto
 
     $tree = Native::test(Forecasts::class)->tree();
 
-    $outOfStockCell = findNodeByRef($tree, 'stock-row-1')['children'][1];
-    $inStockCell = findNodeByRef($tree, 'stock-row-2')['children'][1];
+    $outOfStockCell = findNodeByRef($tree, 'stock-row-1-quantity');
+    $inStockCell = findNodeByRef($tree, 'stock-row-2-quantity');
 
     expect($outOfStockCell['props']['color'] ?? null)->toBe('#E24947'); // theme destructive
     expect($inStockCell['props']['color'] ?? null)->toBe('#14151A'); // theme on-surface
 });
 
-it('shows "Rupture" and a destructive color in the days-left column when out of stock, even with a non-null day count', function () {
+it('shows "Rupture" and a destructive color in the days-left field when out of stock, even with a non-null day count', function () {
     fakeForecastsEndpoint(stockProducts: [sampleStockProduct(['id' => 1, 'quantity' => 0, 'days_until_stockout' => 3])]);
 
-    $daysCell = findNodeByRef(Native::test(Forecasts::class)->tree(), 'stock-row-1')['children'][4];
+    $daysCell = findNodeByRef(Native::test(Forecasts::class)->tree(), 'stock-row-1-days-left');
 
     expect($daysCell['props']['text'] ?? null)->toBe('Rupture');
     expect($daysCell['props']['color'] ?? null)->toBe('#E24947');
 });
 
-it('color-codes the days-left column destructive when 7 days or fewer remain', function () {
+it('color-codes the days-left field destructive when 7 days or fewer remain', function () {
     fakeForecastsEndpoint(stockProducts: [sampleStockProduct(['id' => 1, 'quantity' => 5, 'days_until_stockout' => 5])]);
 
-    $daysCell = findNodeByRef(Native::test(Forecasts::class)->tree(), 'stock-row-1')['children'][4];
+    $daysCell = findNodeByRef(Native::test(Forecasts::class)->tree(), 'stock-row-1-days-left');
 
     expect($daysCell['props']['text'] ?? null)->toBe('5 j');
     expect($daysCell['props']['color'] ?? null)->toBe('#E24947');
 });
 
-it('color-codes the days-left column accent (warning) when 21 days or fewer, but more than 7, remain', function () {
+it('color-codes the days-left field accent (warning) when 21 days or fewer, but more than 7, remain', function () {
     fakeForecastsEndpoint(stockProducts: [sampleStockProduct(['id' => 1, 'quantity' => 5, 'days_until_stockout' => 15])]);
 
-    $daysCell = findNodeByRef(Native::test(Forecasts::class)->tree(), 'stock-row-1')['children'][4];
+    $daysCell = findNodeByRef(Native::test(Forecasts::class)->tree(), 'stock-row-1-days-left');
 
     expect($daysCell['props']['text'] ?? null)->toBe('15 j');
     expect($daysCell['props']['color'] ?? null)->toBe('#EC7C0E'); // theme accent
@@ -793,13 +794,31 @@ it('color-codes the days-left column accent (warning) when 21 days or fewer, but
 // Regression: a naive `days_until_stockout <= 7` check without a null guard
 // is true in PHP for null (loosely compares as 0), which would wrongly
 // destructive-color a product with an unknown days-left value.
-it('shows a neutral color and an em dash in the days-left column when the day count is unknown', function () {
+it('shows a neutral color and an em dash in the days-left field when the day count is unknown', function () {
     fakeForecastsEndpoint(stockProducts: [sampleStockProduct(['id' => 1, 'quantity' => 5, 'days_until_stockout' => null])]);
 
-    $daysCell = findNodeByRef(Native::test(Forecasts::class)->tree(), 'stock-row-1')['children'][4];
+    $daysCell = findNodeByRef(Native::test(Forecasts::class)->tree(), 'stock-row-1-days-left');
 
     expect($daysCell['props']['text'] ?? null)->toBe('—');
     expect($daysCell['props']['color'] ?? null)->toBe('#14151A'); // theme on-surface
+});
+
+it('shows the active sort pill highlighted with a direction arrow, and flips direction on repeat tap', function () {
+    fakeForecastsEndpoint();
+
+    $screen = Native::test(Forecasts::class);
+    $tree = $screen->tree();
+
+    $nameSort = findNodeByRef($tree, 'stock-sort-name');
+    expect($nameSort['children'][0]['props']['text'] ?? null)->toBe('Nom ↑');
+    expect($nameSort['style']['bg_color'] ?? null)->toContain('2D5D5A'); // theme primary — active
+
+    $stockSort = findNodeByRef($tree, 'stock-sort-stock');
+    expect($stockSort['children'][0]['props']['text'] ?? null)->toBe('Stock');
+    expect($stockSort['style']['bg_color'] ?? null)->toContain('F0EDE8'); // theme surface-variant — inactive
+
+    $screen->call('setStockSort', 'name');
+    expect($screen->get('stockDir'))->toBe('desc');
 });
 
 it('shows a page-range summary ("start–end sur total") instead of "Page N / M"', function () {

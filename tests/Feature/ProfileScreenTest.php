@@ -48,3 +48,38 @@ it('surfaces a validation error from the server without clearing the form', func
     expect($screen->get('lastApiError'))->not->toBeNull();
     expect($screen->get('emailInput'))->toBe('taken@example.com');
 });
+
+it('changes the password and clears the form on success', function () {
+    fakeProfileEndpoints();
+    Http::fake(['*/api/v1/auth/password' => Http::response(['message' => 'Mot de passe mis à jour'])]);
+
+    $screen = Native::test(Profile::class);
+    $screen->set('currentPasswordInput', 'old-pass')
+        ->set('newPasswordInput', 'new-pass-123')
+        ->set('newPasswordConfirmationInput', 'new-pass-123')
+        ->call('changePassword');
+
+    expect($screen->get('lastApiError'))->toBeNull();
+    expect($screen->get('currentPasswordInput'))->toBe('');
+    expect($screen->get('newPasswordInput'))->toBe('');
+    expect($screen->get('newPasswordConfirmationInput'))->toBe('');
+});
+
+it('surfaces a password-change server error and keeps the form filled', function () {
+    Http::fake([
+        '*/api/v1/auth/me' => Http::response(['user' => ['name' => 'Marie Chevalier', 'email' => 'marie@boutique-principale.fr']]),
+        '*/api/v1/auth/password' => Http::response([
+            'message' => 'validation error',
+            'errors' => ['current_password' => ['Le mot de passe actuel est incorrect.']],
+        ], 422),
+    ]);
+
+    $screen = Native::test(Profile::class);
+    $screen->set('currentPasswordInput', 'wrong')
+        ->set('newPasswordInput', 'new-pass-123')
+        ->set('newPasswordConfirmationInput', 'new-pass-123')
+        ->call('changePassword');
+
+    expect($screen->get('lastApiError'))->not->toBeNull();
+    expect($screen->get('currentPasswordInput'))->toBe('wrong');
+});

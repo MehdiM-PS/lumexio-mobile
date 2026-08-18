@@ -85,7 +85,9 @@ class LumexioApi
 
         $token = LocalState::current()->token;
 
+        // Server redirects non-JSON-accepting unauthenticated requests to an HTML login page instead of returning 401.
         $request = Http::baseUrl(config('lumexio.api_url'))
+            ->acceptJson()
             ->timeout(config('lumexio.timeout'));
 
         if ($token) {

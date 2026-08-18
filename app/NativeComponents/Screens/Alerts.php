@@ -79,8 +79,24 @@ class Alerts extends NativeComponent
         LocalState::current()->update(['unread_alert_count' => $this->stats['unread'] ?? 0]);
     }
 
-    public function setSeverityFilter(?string $severity): void
+    /**
+     * `$selected` is the chip's emitted on_change value, appended by the
+     * dispatcher after the callback's own args. Each severity is its own
+     * independent `<chip>` (no shared native:model group exists for
+     * chips), so switching severities fires this callback twice: once
+     * with `selected: true` from the tapped chip, and once with
+     * `selected: false` from the previously-active chip's own echo when
+     * the re-render pushes its new, deselected value back down to it.
+     * Without this guard, that `false` echo would blindly reassign
+     * $severityFilter back to that chip's own value, fighting the
+     * just-made selection in an oscillating loop.
+     */
+    public function setSeverityFilter(?string $severity, bool $selected = true): void
     {
+        if (! $selected) {
+            return;
+        }
+
         $this->severityFilter = $severity;
         $this->refresh();
     }

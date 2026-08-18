@@ -5,6 +5,7 @@ use App\NativeComponents\Layouts\TabsLayout;
 use App\NativeComponents\Screens\Dashboard;
 use Illuminate\Support\Facades\Http;
 use Native\Mobile\Edge\CallbackRegistry;
+use Native\Mobile\Platform;
 use Native\Mobile\Testing\Native;
 
 /**
@@ -61,36 +62,73 @@ it('declares exactly 5 tabs in order with the correct routes and labels', functi
     }
 });
 
-it('renders the shared header with the cached shop name and alert badge from LocalState', function () {
+it('resolves a shopping-cart icon on the Ventes tab, matching the mockup, on both platforms', function () {
+    // Regression test: this tab used to be `icon: 'eurosign.circle'` — a
+    // currency-circle glyph with no equivalent in the mockup, which also
+    // has no manual Android name mapping and silently renders as a
+    // missing glyph on that platform. It was briefly `Ios::Bag` /
+    // `AndroidOutlined::ShoppingBag`, but SF Symbols aren't stroke-drawn
+    // like the mockup's SVGs — `bag` renders as a dense, mostly-solid
+    // glyph that visually clashes with the thin-line house/chart/bulb/bell
+    // icons beside it on iOS. `cart` is a wirier glyph matching that
+    // weight, so this pins the resolved icon per platform.
     fakeTabsLayoutEndpoints();
-    LocalState::current()->update(['active_shop_name' => 'Boutique Principale', 'unread_alert_count' => 3]);
+    $screen = Native::test(Dashboard::class);
+    $registry = new CallbackRegistry;
+
+    // Tab::toElement() resolves the platform icon triple eagerly (via
+    // HasPlatformIcon::resolvedIcon()) at build time, not lazily at
+    // render time — so the platform must be set before tabBar() runs,
+    // not before reading the already-built item's resolved props.
+    try {
+        Platform::set('ios');
+        $iosItem = (new TabsLayout)->tabBar($screen->instance())->tabElements()[2];
+        expect($iosItem->getResolvedProps($registry)['icon'] ?? null)->toBe('cart');
+
+        Platform::set('android');
+        $androidItem = (new TabsLayout)->tabBar($screen->instance())->tabElements()[2];
+        $androidProps = $androidItem->getResolvedProps($registry);
+        expect($androidProps['icon'] ?? null)->toBe('shopping_cart');
+        expect($androidProps['material_variant'] ?? null)->toBe('outlined');
+    } finally {
+        Platform::set(null);
+    }
+});
+
+it('renders the shared header with the cached shop name from LocalState', function () {
+    fakeTabsLayoutEndpoints();
+    LocalState::current()->update(['active_shop_name' => 'Boutique Principale']);
 
     // Native::test() only applies native chrome (navBar/tabBar) when a
     // layout is passed explicitly — unlike Native::visit(), which resolves
     // it from the route registration. Without this, the header partial
-    // never renders and both header assertions below pass vacuously for
-    // the wrong reason.
+    // never renders and the assertion below passes vacuously for the
+    // wrong reason.
     $screen = Native::test(Dashboard::class, layout: TabsLayout::class);
-    $tree = $screen->tree();
 
     $screen->assertSee('Boutique Principale');
-
-    $badge = findNodeByRef($tree, 'header-alert-badge');
-    expect($badge)->not->toBeNull();
-    expect($badge['props']['label'] ?? null)->toBe('3');
 });
 
-it('renders no alert badge when unread_alert_count is zero', function () {
+it('shows the unread alert count as a badge on the Alertes tab', function () {
+    fakeTabsLayoutEndpoints();
+    LocalState::current()->update(['unread_alert_count' => 3]);
+    $screen = Native::test(Dashboard::class);
+
+    $alertsItem = (new TabsLayout)->tabBar($screen->instance())->tabElements()[4];
+    $props = $alertsItem->getResolvedProps(new CallbackRegistry);
+
+    expect($props['badge'] ?? null)->toBe('3');
+});
+
+it('shows no badge on the Alertes tab when unread_alert_count is zero', function () {
     fakeTabsLayoutEndpoints();
     LocalState::current()->update(['unread_alert_count' => 0]);
+    $screen = Native::test(Dashboard::class);
 
-    $screen = Native::test(Dashboard::class, layout: TabsLayout::class);
-    $tree = $screen->tree();
+    $alertsItem = (new TabsLayout)->tabBar($screen->instance())->tabElements()[4];
+    $props = $alertsItem->getResolvedProps(new CallbackRegistry);
 
-    // Anchor: the header itself DID render (else this assertion would
-    // pass vacuously for the wrong reason — an unwired navBar()).
-    expect(findNodeByRef($tree, 'header-alert-button'))->not->toBeNull();
-    expect(findNodeByRef($tree, 'header-alert-badge'))->toBeNull();
+    expect($props['badge'] ?? null)->toBeNull();
 });
 
 it('renders the shop-pill logo image', function () {
@@ -99,6 +137,24 @@ it('renders the shop-pill logo image', function () {
     $screen = Native::test(Dashboard::class, layout: TabsLayout::class);
 
     expect(findNodeByRef($screen->tree(), 'header-shop-logo'))->not->toBeNull();
+});
+
+it('chains ->minWidth() onto the header partial\'s own root row, not an implicit wrapper', function () {
+    // Regression test for HasHeaderChrome::headerTitleView(): it calls
+    // ->minWidth() on whatever fromViewPartial() returns, trusting that's
+    // the partial's own `ref="header-shop-row"` root. If collect() ever
+    // started wrapping single-root partials in an implicit Column, the
+    // chain would silently land on that wrapper instead and the ref'd row
+    // would carry no min_width — this only catches that failure mode; it
+    // says nothing about whether the width is enough to actually beat
+    // SwiftUI's `.principal`-slot centering on device.
+    fakeTabsLayoutEndpoints();
+
+    $screen = Native::test(Dashboard::class, layout: TabsLayout::class);
+
+    $row = findNodeByRef($screen->tree(), 'header-shop-row');
+    expect($row)->not->toBeNull();
+    expect($row['layout']['min_width'] ?? null)->toBe(260.0);
 });
 
 it('renders the shop-pill chevron with a resolved color, proving class-based styling reaches native:icon', function () {
@@ -114,44 +170,30 @@ it('renders the shop-pill chevron with a resolved color, proving class-based sty
     expect($chevron['props']['color'] ?? null)->toBe(theme('on-surface-variant'));
 });
 
-it('positions the alert badge as an overlapping corner badge on the bell button, not an inline pill', function () {
+it('wires the account and alerts icons as trailing bar actions, not into the cramped title slot', function () {
+    // Regression test: the account/alerts buttons used to be composed
+    // inside the header partial's own titleView markup, sharing the bar's
+    // narrow, centered `.principal` slot with the shop-switcher pill — a
+    // `w-full justify-between` row fighting for space that slot doesn't
+    // have, which is what made the header look cramped. They now render
+    // as real NavBar actions, which get guaranteed trailing space of
+    // their own.
     fakeTabsLayoutEndpoints();
-    LocalState::current()->update(['unread_alert_count' => 2]);
+    $screen = Native::test(Dashboard::class);
 
-    $screen = Native::test(Dashboard::class, layout: TabsLayout::class);
+    $navBar = (new TabsLayout)->navBar($screen->instance());
+    $registry = new CallbackRegistry;
+    $actions = collect($navBar->actionElements())
+        ->map(fn ($action) => $action->toArray($registry))
+        ->keyBy(fn (array $node) => $node['props']['id'] ?? null);
 
-    $badge = findNodeByRef($screen->tree(), 'header-alert-badge');
-    expect($badge)->not->toBeNull();
-    // position_type 1 = absolute (see TailwindParser's `absolute` class) —
-    // proves this is an overlapping corner badge, not the old inline pill
-    // laid out in normal (relative) flow next to the bell icon.
-    expect($badge['layout']['position_type'] ?? null)->toBe(1);
-    expect($badge['layout']['position'] ?? null)->toBe([-3.0, -3.0, 0.0, 0.0]);
-});
+    expect($actions->has('account'))->toBeTrue();
+    expect($actions['account']['props']['icon'] ?? null)->toBe('person');
+    expect($actions['account']['props']['a11y_label'] ?? null)->toBe('Mon compte');
+    expect($actions['account']['on_press'] ?? null)->toBe($registry->register('openAccountSheet'));
 
-it('keeps the alert badge OUTSIDE the rounded-full bell button\'s clip boundary', function () {
-    // ClipRadiusModifier (NodeStyleModifier.swift) clips a node's whole
-    // composite content — background + children — to its own border-radius.
-    // header-alert-button is rounded-full (border_radius 9999), and the
-    // badge is deliberately positioned to overflow a 34x34 circle (that's
-    // the point of an overlapping corner badge) — so if the badge were
-    // still a DESCENDANT of that button, it would render clipped away on
-    // device even though every other assertion here stays green. The badge
-    // must be a sibling of the button (inside a non-rounded outer wrapper),
-    // not a child of it.
-    fakeTabsLayoutEndpoints();
-    LocalState::current()->update(['unread_alert_count' => 2]);
-
-    $screen = Native::test(Dashboard::class, layout: TabsLayout::class);
-    $tree = $screen->tree();
-
-    $button = findNodeByRef($tree, 'header-alert-button');
-    expect($button)->not->toBeNull();
-    expect($button['style']['border_radius'] ?? null)->toBe(9999.0);
-    // The badge must NOT be found inside the rounded-full button's own
-    // subtree.
-    expect(findNodeByRef($button, 'header-alert-badge'))->toBeNull();
-    // ...but it does exist elsewhere in the full tree (as the button's
-    // sibling), so this isn't just proving the badge doesn't render at all.
-    expect(findNodeByRef($tree, 'header-alert-badge'))->not->toBeNull();
+    expect($actions->has('alerts'))->toBeTrue();
+    expect($actions['alerts']['props']['icon'] ?? null)->toBe('bell');
+    expect($actions['alerts']['props']['a11y_label'] ?? null)->toBe('Alertes');
+    expect($actions['alerts']['on_press'] ?? null)->toBe($registry->register('goAlerts'));
 });

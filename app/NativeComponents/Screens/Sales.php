@@ -74,8 +74,24 @@ class Sales extends NativeComponent
         $this->basketChart = $this->bucketize($avgCartChart['labels'] ?? [], $avgCartChart['avgCart'] ?? []);
     }
 
-    public function setSalesPeriod(string $key): void
+    /**
+     * `$selected` is the chip's emitted on_change value, appended by the
+     * dispatcher after the callback's own args. Each period is its own
+     * independent `<chip>` (no shared native:model group exists for
+     * chips), so switching periods fires this callback twice: once with
+     * `selected: true` from the tapped chip, and once with `selected:
+     * false` from the previously-active chip's own echo when the
+     * re-render pushes its new, deselected value back down to it.
+     * Without this guard, that `false` echo would blindly reassign
+     * $salesPeriod back to that chip's own key, fighting the just-made
+     * selection in an oscillating loop.
+     */
+    public function setSalesPeriod(string $key, bool $selected = true): void
     {
+        if (! $selected) {
+            return;
+        }
+
         $this->salesPeriod = $key;
         $this->refresh();
     }

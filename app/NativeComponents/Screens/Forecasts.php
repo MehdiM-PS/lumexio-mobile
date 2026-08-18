@@ -234,18 +234,16 @@ class Forecasts extends NativeComponent
         $this->stockCategorySearch = '';
     }
 
-    public function toggleStockHideInactive(): void
+    public function updatedStockHideInactive(): void
     {
         $this->resetApiError();
-        $this->stockHideInactive = ! $this->stockHideInactive;
         $this->stockPage = 1;
         $this->loadStock();
     }
 
-    public function toggleStockHideOOS(): void
+    public function updatedStockHideOOS(): void
     {
         $this->resetApiError();
-        $this->stockHideOOS = ! $this->stockHideOOS;
         $this->stockPage = 1;
         $this->loadStock();
     }

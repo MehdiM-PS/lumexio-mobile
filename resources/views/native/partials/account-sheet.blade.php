@@ -13,9 +13,6 @@
         <pressable ref="account-sheet-profile" class="w-full rounded-lg px-2 py-[12]" @press="goProfile">
             <text class="text-sm font-medium text-theme-on-surface">Mon profil</text>
         </pressable>
-        <pressable ref="account-sheet-account" class="w-full rounded-lg px-2 py-[12]" @press="goAccount">
-            <text class="text-sm font-medium text-theme-on-surface">Mon compte</text>
-        </pressable>
         <pressable class="w-full rounded-lg px-2 py-[12]" @press="openShopSwitcher">
             <text class="text-sm font-medium text-theme-on-surface">Gérer mes boutiques</text>
         </pressable>

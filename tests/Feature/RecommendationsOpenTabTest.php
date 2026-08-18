@@ -112,6 +112,25 @@ it('requests the high-priority filter when the "Haute" chip is tapped', function
         && ($request['priority'] ?? null) === 'high');
 });
 
+it('does not fight the newly-selected priority when the previously-active chip echoes its own deselection', function () {
+    // Regression test: each priority pill is its own independent <chip>
+    // (no shared native:model group exists for chips), so switching
+    // priorities sends two real dispatch events — the tapped chip's own
+    // `selected: true`, and the previously-active chip's `selected:
+    // false` echo once the re-render pushes it back down to the client.
+    // setPriorityFilter() used to ignore that trailing bool entirely, so
+    // the `false` echo blindly reassigned $priorityFilter back to the
+    // deselected chip's own value, fighting the just-made selection.
+    fakeRecommendationsOpenEndpoints(recommendations: [sampleRecommendation()]);
+
+    $screen = Native::test(RecommendationsOpenTab::class);
+    $screen->toggle('reco-priority-high', true);
+    expect($screen->get('priorityFilter'))->toBe('high');
+
+    $screen->toggle('reco-priority-all', false);
+    expect($screen->get('priorityFilter'))->toBe('high');
+});
+
 // refresh() sends `'priority' => null` when the filter is 'all' (rather than
 // omitting the key from the array outright). $request->data() reflects the
 // raw pre-serialization array Http::get() was called with (so it still shows

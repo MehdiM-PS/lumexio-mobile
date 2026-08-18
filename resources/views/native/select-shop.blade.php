@@ -7,7 +7,7 @@
         <text ref="shops-error" class="text-sm text-theme-destructive">{{ $lastApiError }}</text>
     @endif
 
-    <refreshable @refresh="refresh">
+    <refreshable fill @refresh="refresh">
         <column class="w-full gap-3">
             @if (count($shops) === 0 && ! $lastApiError)
                 <column ref="shops-empty" class="w-full items-start gap-3 rounded-lg border border-theme-outline bg-theme-surface px-4 py-[14]">

@@ -192,6 +192,25 @@ it('clears the severity filter via the real "Toutes" chip binding', function () 
     expect($lastListRequest['severity'] ?? null)->toBeNull();
 });
 
+it('does not fight the newly-selected severity when the previously-active chip echoes its own deselection', function () {
+    // Regression test: each severity pill is its own independent <chip>
+    // (no shared native:model group exists for chips), so switching
+    // severities sends two real dispatch events — the tapped chip's own
+    // `selected: true`, and the previously-active chip's `selected:
+    // false` echo once the re-render pushes it back down to the client.
+    // setSeverityFilter() used to ignore that trailing bool entirely, so
+    // the `false` echo blindly reassigned $severityFilter back to the
+    // deselected chip's own value, fighting the just-made selection.
+    fakeAlertsScreenEndpoints(alerts: [sampleAlert()]);
+
+    $screen = Native::test(Alerts::class);
+    $screen->toggle('alerts-severity-critical', true);
+    expect($screen->get('severityFilter'))->toBe('critical');
+
+    $screen->toggle('alerts-severity-all', false);
+    expect($screen->get('severityFilter'))->toBe('critical');
+});
+
 it('marks a single alert as read via the real button binding', function () {
     fakeAlertsScreenEndpoints(alerts: [sampleAlert(['id' => 5])]);
 

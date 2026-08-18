@@ -131,6 +131,25 @@ it('requests the low-stock filter when the "Stock bas" chip is tapped', function
     Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/products?') && ($request['filter'] ?? null) === 'low');
 });
 
+it('does not fight the newly-selected status when the previously-active chip echoes its own deselection', function () {
+    // Regression test: each status pill is its own independent <chip>
+    // (no shared native:model group exists for chips), so switching
+    // statuses sends two real dispatch events — the tapped chip's own
+    // `selected: true`, and the previously-active chip's `selected:
+    // false` echo once the re-render pushes it back down to the client.
+    // setStatusFilter() used to ignore that trailing bool entirely, so
+    // the `false` echo blindly reassigned $statusFilter back to the
+    // deselected chip's own value, fighting the just-made selection.
+    fakeStockEndpoints(products: [stockProduct()], variants: []);
+
+    $screen = Native::test(StockProductsTab::class);
+    $screen->toggle('chip-status-low', true);
+    expect($screen->get('statusFilter'))->toBe('low');
+
+    $screen->toggle('chip-status-all', false);
+    expect($screen->get('statusFilter'))->toBe('low');
+});
+
 // Bug fix: <refreshable> was nested as one sibling among several inside the
 // outer fill column, so it never claimed the remaining vertical space and
 // the list didn't scroll. It must now be the OUTERMOST element (matching

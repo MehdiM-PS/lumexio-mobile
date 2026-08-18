@@ -28,6 +28,14 @@ it('sends no Authorization header when no token is stored', function () {
     Http::assertSent(fn ($request) => ! $request->hasHeader('Authorization'));
 });
 
+it('always sends an Accept: application/json header', function () {
+    Http::fake(['*' => Http::response(['user' => ['id' => 1]], 200)]);
+
+    app(LumexioApi::class)->get('/auth/me');
+
+    Http::assertSent(fn ($request) => $request->hasHeader('Accept', 'application/json'));
+});
+
 it('injects the stored shop_id into GET requests that do not already set one', function () {
     LocalState::current()->update(['shop_id' => 'shop-uuid']);
     Http::fake(['*' => Http::response(['metrics' => []], 200)]);

@@ -5,6 +5,7 @@ namespace App\NativeComponents\Concerns;
 use App\Models\LocalState;
 use App\Services\AuthService;
 use App\Services\LumexioApi;
+use Native\Mobile\Edge\Element;
 use Native\Mobile\Facades\Browser;
 
 /**
@@ -31,6 +32,33 @@ trait HasHeaderChrome
     public array $switcherShops = [];
 
     public ?array $currentUser = null;
+
+    /**
+     * The shop-switcher pill for `TabsLayout::navBar()`'s `->titleView()`.
+     * Blade's `class="..."` attributes can't express `min-width` — Tailwind
+     * parsing has no handler for it, so `NativeElementCollector::applyLayout`
+     * never calls `Element::minWidth()`. Only the fluent PHP API can, and
+     * that's the only lever available (from this app's side) that gets
+     * `native/partials/header.blade.php`'s pill left-aligned in the nav
+     * bar's `.principal` slot on iOS: `NodeLayoutModifier` reports the
+     * `.frame`'s ideal width as the pill's own natural (short, hugging)
+     * size when width isn't forced, and SwiftUI centers a `.principal`
+     * toolbar item using exactly that ideal size — so a short shop name
+     * renders centered no matter how the wrapping row's own Tailwind
+     * classes are set. Forcing a floor via `->minWidth()` here is what
+     * makes SwiftUI allocate (and then left-align within) a wider region
+     * regardless of content length.
+     *
+     * `fromViewPartial()` (protected on `NativeComponent`) is reachable
+     * from here because this trait is mixed directly into a
+     * `NativeComponent` subclass — traits share the host class's
+     * protected/private access as if the method were declared in the
+     * class body.
+     */
+    public function headerTitleView(): Element
+    {
+        return $this->fromViewPartial(view('native.partials.header'))->minWidth(260);
+    }
 
     public function openShopSwitcher(): void
     {
@@ -65,12 +93,6 @@ trait HasHeaderChrome
     {
         $this->closeAccountSheet();
         $this->navigate('/profile');
-    }
-
-    public function goAccount(): void
-    {
-        $this->closeAccountSheet();
-        $this->navigate('/account');
     }
 
     /**

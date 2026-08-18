@@ -17,6 +17,14 @@ class Profile extends NativeComponent
 
     public bool $saving = false;
 
+    public string $currentPasswordInput = '';
+
+    public string $newPasswordInput = '';
+
+    public string $newPasswordConfirmationInput = '';
+
+    public bool $savingPassword = false;
+
     public function mount(): void
     {
         $this->resetApiError();
@@ -43,6 +51,26 @@ class Profile extends NativeComponent
         }
 
         $this->saving = false;
+    }
+
+    public function changePassword(): void
+    {
+        $this->resetApiError();
+        $this->savingPassword = true;
+
+        $data = $this->callApi(fn () => app(LumexioApi::class)->patch('/auth/password', [
+            'current_password' => $this->currentPasswordInput,
+            'password' => $this->newPasswordInput,
+            'password_confirmation' => $this->newPasswordConfirmationInput,
+        ]));
+
+        if ($data !== null) {
+            $this->currentPasswordInput = '';
+            $this->newPasswordInput = '';
+            $this->newPasswordConfirmationInput = '';
+        }
+
+        $this->savingPassword = false;
     }
 
     public function accountInitialsFor(string $name): string

@@ -56,13 +56,13 @@ class Dashboard extends NativeComponent
 
     public function dayScopeValue(): string
     {
-        return $this->dayScope === 1 ? 'yesterday' : 'today';
+        return $this->dayScope === 1 ? 'today' : 'yesterday';
     }
 
     public function setDayScope(int $index): void
     {
         $this->dayScope = $index;
-        $this->refresh();
+        $this->load();
     }
 
     /** Bound to pull-to-refresh; always bypasses the short-lived GET cache. */

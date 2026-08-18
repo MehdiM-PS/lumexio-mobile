@@ -210,6 +210,28 @@ it('switches to yesterday and re-fetches metrics with day=yesterday', function (
         && ($request['day'] ?? null) === 'yesterday');
 });
 
+it('reuses cached responses when switching day scope back and forth, instead of busting the whole cache', function () {
+    // Regression guard: setDayScope() used to delegate to refresh(), which
+    // bustApiCache()s indiscriminately — busting every endpoint's cache
+    // (not just the day-scoped ones) on every toggle tap. That made rapid
+    // today/yesterday switching always hit the network for all 8 endpoints,
+    // which is the slow-switching behaviour reported by the user. Only
+    // /dashboard/metrics and /dashboard/widgets vary with `day`; the other 6
+    // calls (auth/me, forecasts, stock-depletion, segments, alerts, shops)
+    // should replay from cache on every switch within the TTL, and toggling
+    // back to a day already fetched this session should replay that too.
+    Carbon::setTestNow(Carbon::parse('2026-08-14 15:00:00'));
+    fakeDashboardEndpoints();
+
+    $screen = Native::visit('/dashboard'); // day=today, 8 calls
+
+    $screen->call('setDayScope', 1); // day=yesterday: 2 new calls (metrics, widgets), 6 replayed from cache
+    Http::assertSentCount(10);
+
+    $screen->call('setDayScope', 0); // back to day=today: already cached from mount, 0 new calls
+    Http::assertSentCount(10);
+});
+
 it('shows a two-option day-scope toggle bound to setDayScope', function () {
     fakeDashboardEndpoints();
 
@@ -652,15 +674,6 @@ it('navigates to the profile screen from the account sheet', function () {
     $screen->call('goProfile');
 
     $screen->assertNavigatedTo('/profile');
-});
-
-it('navigates to the account screen from the account sheet', function () {
-    fakeDashboardEndpoints();
-
-    $screen = Native::test(Dashboard::class);
-    $screen->call('goAccount');
-
-    $screen->assertNavigatedTo('/account');
 });
 
 it('caches the active shop name in LocalState on refresh', function () {

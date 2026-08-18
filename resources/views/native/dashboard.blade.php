@@ -7,7 +7,7 @@
         the read side (:value="$dayScope"); @change carries the write side
         since setDayScope() has a refresh() side effect, unlike tab-row's
         bare native:model in stock.blade.php. --}}
-        <button-group ref="dashboard-day-scope" native:model="dayScope" @change="setDayScope" :options="['Aujourd\'hui', 'Hier']" class="w-full" />
+        <button-group ref="dashboard-day-scope" native:model="dayScope" @change="setDayScope" :options="['Hier', 'Aujourd\'hui']" class="w-full" />
 
         @if ($syncStatus === 'failed')
             <row ref="dashboard-sync-failed" class="w-full items-center gap-2 rounded-lg bg-theme-destructive/15 px-4 py-[10]">
@@ -28,17 +28,25 @@
         @endif
 
         @php $heroDelta = $this->heroDeltaPercent(); @endphp
-        <row class="w-full justify-between items-baseline">
+        <row class="w-full justify-between items-start">
             <column class="gap-1">
                 <text ref="dashboard-hero-day-label" class="text-xs text-theme-on-surface-variant">CA {{ $dayScope === 1 ? "d'hier" : "aujourd'hui" }}</text>
-                <text class="text-xl font-bold text-theme-on-background" content-transition="numeric">
+                <text ref="dashboard-hero-revenue" class="text-5xl font-bold text-theme-on-background" content-transition="numeric">
                     {{ number_format($metrics['revenue_today'] ?? 0, 2, ',', ' ') }} €
                 </text>
             </column>
             @if ($heroDelta !== null)
-                <text ref="dashboard-hero-delta" class="text-sm font-semibold {{ $heroDelta >= 0 ? 'text-theme-success' : 'text-theme-destructive' }}">
-                    {{ $heroDelta >= 0 ? '↑' : '↓' }} {{ number_format(abs($heroDelta), 0, ',', ' ') }}%
-                </text>
+                <column class="gap-1">
+                    <text ref="dashboard-hero-delta" class="text-sm font-semibold {{ $heroDelta >= 0 ? 'text-theme-success' : 'text-theme-destructive' }}">
+                        {{ $heroDelta >= 0 ? '↑' : '↓' }} {{ number_format(abs($heroDelta), 0, ',', ' ') }}%
+                    </text>
+                    <text ref="dashboard-hero-revenue-forecast" class="text-sm font-semibold text-theme-on-surface-variant">
+                        {{ number_format($widgets['ca_forecast_predicted'] ?? 0, 2, ',', ' ') }} €
+                    </text>
+                    <text ref="dashboard-hero-revenue-forecast" class="text-sm font-semibold text-theme-on-surface-variant">
+                        prévus
+                    </text>
+                </column>
             @endif
         </row>
         <text class="text-xs text-theme-on-surface-variant">vs prévision du jour</text>

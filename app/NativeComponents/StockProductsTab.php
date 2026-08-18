@@ -29,8 +29,24 @@ class StockProductsTab extends NativeComponent
         $this->refresh();
     }
 
-    public function setStatusFilter(string $filter): void
+    /**
+     * `$selected` is the chip's emitted on_change value, appended by the
+     * dispatcher after the callback's own args. Each status is its own
+     * independent `<chip>` (no shared native:model group exists for
+     * chips), so switching statuses fires this callback twice: once
+     * with `selected: true` from the tapped chip, and once with
+     * `selected: false` from the previously-active chip's own echo when
+     * the re-render pushes its new, deselected value back down to it.
+     * Without this guard, that `false` echo would blindly reassign
+     * $statusFilter back to that chip's own value, fighting the
+     * just-made selection in an oscillating loop.
+     */
+    public function setStatusFilter(string $filter, bool $selected = true): void
     {
+        if (! $selected) {
+            return;
+        }
+
         $this->statusFilter = $filter;
         $this->refresh();
     }

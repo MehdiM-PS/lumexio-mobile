@@ -62,6 +62,27 @@ it('sends the correct period key for each pill', function ($key) {
         && ($request['period'] ?? null) === $key);
 })->with(['today', 'yesterday', 'week', 'last_week', 'month', 'last_month', 'year', 'last_year']);
 
+it('does not fight the newly-selected period when the previously-active chip echoes its own deselection', function () {
+    // Regression test: each period pill is its own independent <chip>
+    // (no shared native:model group exists for chips), so switching
+    // periods sends two real dispatch events — the tapped chip's own
+    // `selected: true`, and the previously-active chip's `selected:
+    // false` echo once the re-render pushes it back down to the client.
+    // setSalesPeriod() used to ignore that trailing bool entirely, so
+    // the `false` echo blindly reassigned $salesPeriod back to the
+    // deselected chip's own key, fighting the just-made selection.
+    fakeSalesEndpoints();
+
+    $screen = Native::test(Sales::class);
+    expect($screen->get('salesPeriod'))->toBe('month');
+
+    $screen->toggle('sales-period-today', true);
+    expect($screen->get('salesPeriod'))->toBe('today');
+
+    $screen->toggle('sales-period-month', false);
+    expect($screen->get('salesPeriod'))->toBe('today');
+});
+
 it('shows the metrics grid with current values and colored deltas', function () {
     fakeSalesEndpoints();
 
