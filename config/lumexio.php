@@ -9,5 +9,5 @@ return [
      * made. Balances snappy tab-switching against data freshness; kept short
      * since dashboard/stock figures change frequently.
      */
-    'cache_ttl' => env('LUMEXIO_API_CACHE_TTL', 15),
+    'cache_ttl' => (int) env('LUMEXIO_API_CACHE_TTL', 15),
 ];
