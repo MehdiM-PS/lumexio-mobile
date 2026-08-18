@@ -50,10 +50,17 @@ class Alerts extends NativeComponent
 
     public function mount(): void
     {
-        $this->refresh();
+        $this->load();
     }
 
+    /** Bound to pull-to-refresh; always bypasses the short-lived GET cache. */
     public function refresh(): void
+    {
+        $this->bustApiCache();
+        $this->load();
+    }
+
+    private function load(): void
     {
         $this->resetApiError();
         $this->loadCurrentUser();

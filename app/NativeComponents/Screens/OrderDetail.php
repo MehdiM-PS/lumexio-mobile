@@ -20,10 +20,17 @@ class OrderDetail extends NativeComponent
             'reference' => '',
         ]);
 
-        $this->loadDetail();
+        $this->load();
     }
 
+    /** Bound to pull-to-refresh; always bypasses the short-lived GET cache. */
     public function loadDetail(): void
+    {
+        $this->bustApiCache();
+        $this->load();
+    }
+
+    private function load(): void
     {
         $this->resetApiError();
 

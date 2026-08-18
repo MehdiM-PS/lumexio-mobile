@@ -51,7 +51,7 @@ class Dashboard extends NativeComponent
     {
         $this->dayScope = now()->hour < self::DAY_SWITCH_HOUR ? 1 : 0;
 
-        $this->refresh();
+        $this->load();
     }
 
     public function dayScopeValue(): string
@@ -65,7 +65,14 @@ class Dashboard extends NativeComponent
         $this->refresh();
     }
 
+    /** Bound to pull-to-refresh; always bypasses the short-lived GET cache. */
     public function refresh(): void
+    {
+        $this->bustApiCache();
+        $this->load();
+    }
+
+    private function load(): void
     {
         $this->loading = true;
         $this->resetApiError();

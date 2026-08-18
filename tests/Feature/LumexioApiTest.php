@@ -161,3 +161,54 @@ it('sends a DELETE request with the given params', function () {
         && str_contains((string) $request->url(), '/suppliers/5')
         && ($request['confirm'] ?? null) === true);
 });
+
+it('serves a repeated GET request from cache instead of hitting the network again', function () {
+    Http::fake(['*' => Http::response(['metrics' => []], 200)]);
+
+    app(LumexioApi::class)->get('/dashboard/metrics');
+    app(LumexioApi::class)->get('/dashboard/metrics');
+
+    Http::assertSentCount(1);
+});
+
+it('treats GET requests with different query parameters as separate cache entries', function () {
+    Http::fake(['*' => Http::response(['metrics' => []], 200)]);
+
+    app(LumexioApi::class)->get('/dashboard/metrics', ['day' => 'today']);
+    app(LumexioApi::class)->get('/dashboard/metrics', ['day' => 'yesterday']);
+
+    Http::assertSentCount(2);
+});
+
+it('refetches a GET request once the cache TTL has elapsed', function () {
+    Http::fake(['*' => Http::response(['metrics' => []], 200)]);
+
+    app(LumexioApi::class)->get('/dashboard/metrics');
+    $this->travel(config('lumexio.cache_ttl') + 1)->seconds();
+    app(LumexioApi::class)->get('/dashboard/metrics');
+
+    Http::assertSentCount(2);
+});
+
+it('busts the GET cache after a successful POST', function () {
+    Http::fake([
+        '*/alerts/1/read' => Http::response(['message' => 'ok'], 200),
+        '*' => Http::response(['metrics' => []], 200),
+    ]);
+
+    app(LumexioApi::class)->get('/dashboard/metrics');
+    app(LumexioApi::class)->post('/alerts/1/read');
+    app(LumexioApi::class)->get('/dashboard/metrics');
+
+    Http::assertSentCount(3);
+});
+
+it('busts the GET cache via LumexioApi::bustCache()', function () {
+    Http::fake(['*' => Http::response(['metrics' => []], 200)]);
+
+    app(LumexioApi::class)->get('/dashboard/metrics');
+    app(LumexioApi::class)->bustCache();
+    app(LumexioApi::class)->get('/dashboard/metrics');
+
+    Http::assertSentCount(2);
+});

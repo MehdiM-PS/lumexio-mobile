@@ -19,13 +19,17 @@ class SelectShop extends NativeComponent
         $this->fetchShops();
     }
 
+    /** Explicit user action after a failed/empty fetch; always bypasses the short-lived GET cache. */
     public function retry(): void
     {
+        $this->bustApiCache();
         $this->fetchShops();
     }
 
+    /** Bound to pull-to-refresh; always bypasses the short-lived GET cache. */
     public function refresh(): void
     {
+        $this->bustApiCache();
         $this->fetchShops();
     }
 

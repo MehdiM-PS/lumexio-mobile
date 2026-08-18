@@ -11,10 +11,13 @@ use App\Exceptions\Api\ValidationApiException;
 use App\Models\LocalState;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 class LumexioApi
 {
+    private const string CACHE_PREFIX = 'lumexio_api';
+
     public function get(string $endpoint, array $query = []): array
     {
         $shopId = LocalState::current()->shop_id;
@@ -23,7 +26,40 @@ class LumexioApi
             $query['shop_id'] = $shopId;
         }
 
-        return $this->send('get', $endpoint, $query);
+        return Cache::remember(
+            $this->cacheKey($endpoint, $query),
+            now()->addSeconds(config('lumexio.cache_ttl')),
+            fn () => $this->send('get', $endpoint, $query),
+        );
+    }
+
+    /**
+     * Invalidate every cached GET response. Called automatically before any
+     * mutating request (see send()); exposed publicly so callers can force a
+     * full refresh (e.g. pull-to-refresh) without waiting out the TTL.
+     *
+     * Bumps a generation number baked into every cache key rather than
+     * Cache::flush(): NativePHP's own NativeCallbacks registry durably stores
+     * pending native-callback closures (camera pickers, OAuth flows, ...) in
+     * this same default cache store, so a blanket flush on every mutation
+     * risks wiping one of those mid-flight. The trade-off is that GET
+     * responses from a previous generation become unreachable but aren't
+     * physically deleted until their TTL naturally expires — on-device rows
+     * accumulate slowly over a long session rather than being freed
+     * immediately, which is judged an acceptable cost given the 15s TTL.
+     */
+    public function bustCache(): void
+    {
+        if (! Cache::add(self::CACHE_PREFIX.':generation', 1)) {
+            Cache::increment(self::CACHE_PREFIX.':generation');
+        }
+    }
+
+    private function cacheKey(string $endpoint, array $query): string
+    {
+        $generation = Cache::get(self::CACHE_PREFIX.':generation', 0);
+
+        return self::CACHE_PREFIX.":{$generation}:{$endpoint}:".md5(serialize($query));
     }
 
     public function post(string $endpoint, array $body = []): array
@@ -43,6 +79,10 @@ class LumexioApi
 
     private function send(string $method, string $endpoint, array $params): array
     {
+        if ($method !== 'get') {
+            $this->bustCache();
+        }
+
         $token = LocalState::current()->token;
 
         $request = Http::baseUrl(config('lumexio.api_url'))

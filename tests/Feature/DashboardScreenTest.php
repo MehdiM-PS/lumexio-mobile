@@ -75,9 +75,26 @@ it('shows the dashboard tab bar and KPI data', function () {
         ->assertSee('Anomalie détectée'); // recent alert title
 });
 
+// The actual motivating scenario for LumexioApi's GET cache: quickly
+// switching away from and back to a tab remounts the screen (mount() runs
+// again), but within the short TTL window it should replay cached
+// responses instead of re-hitting the network — this is what makes fast
+// tab-switching cheap while refresh() (tested above) still always refetches.
+it('serves a second mount within the cache TTL from cache instead of refetching', function () {
+    fakeDashboardEndpoints();
+
+    Native::visit('/dashboard');
+    Native::visit('/dashboard');
+
+    Http::assertSentCount(8); // one dashboard-area round trip total, not two
+});
+
 it('refetches data on pull-to-refresh', function () {
     fakeDashboardEndpoints();
 
+    // refresh() (bound to pull-to-refresh) always busts the short-lived GET
+    // cache before reloading, so it actually re-hits the network instead of
+    // replaying mount()'s cached responses.
     Native::visit('/dashboard')->call('refresh');
 
     Http::assertSentCount(16); // 8 dashboard-area calls (incl. auth/me) on mount, 8 on refresh — same total as before Slice C, different endpoint mix (forecasts/stock-depletion/segments/alerts replaced charts/recent-orders/low-stock/top-products).

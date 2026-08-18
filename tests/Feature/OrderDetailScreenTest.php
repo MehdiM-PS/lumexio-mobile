@@ -104,7 +104,9 @@ it('shows a generic error instead of crashing on failure', function () {
 // Proves the refreshable is bound to loadDetail() via the REAL @refresh
 // binding (Refreshable::resolveProps()'s content-addressed CallbackRegistry
 // id) rather than just calling loadDetail() directly — an isset() check
-// alone would still pass for a typo like "loadDetial".
+// alone would still pass for a typo like "loadDetial". loadDetail() always
+// busts the short-lived GET cache before reloading, so pull-to-refresh
+// actually re-hits the network.
 it('wraps its content in a refreshable element wired to loadDetail', function () {
     fakeOrderDetailEndpoint(['id' => 1, 'reference' => 'ORD-001', 'items' => [], 'customer' => null, 'total_paid_tax_excl' => 0, 'purchase_cost' => 0, 'fixed_fee' => 0, 'margin' => 0, 'margin_rate' => 0]);
 

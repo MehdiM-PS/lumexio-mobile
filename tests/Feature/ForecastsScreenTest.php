@@ -286,6 +286,8 @@ it('is wrapped in a refreshable that calls refresh on pull-to-refresh', function
     // Proves @refresh="refresh" is bound to THIS method specifically —
     // isset() alone would still pass for a typo like "refres" (see
     // ItemDetailScreenTest's "wraps its content in a refreshable" test).
+    // refresh() always busts the short-lived GET cache before reloading, so
+    // pull-to-refresh actually re-hits the network.
     expect($tree['props']['on_refresh'] ?? null)->toBe(callbackIdFor('refresh'));
 
     $screen->call('refresh');

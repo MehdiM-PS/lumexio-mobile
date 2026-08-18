@@ -8,6 +8,7 @@ use App\Exceptions\Api\RateLimitedApiException;
 use App\Exceptions\Api\ServerErrorApiException;
 use App\Exceptions\Api\UnauthenticatedApiException;
 use App\Exceptions\Api\ValidationApiException;
+use App\Services\LumexioApi;
 use Closure;
 use Native\Mobile\Facades\Dialog;
 
@@ -48,5 +49,16 @@ trait HandlesApiErrors
     protected function resetApiError(): void
     {
         $this->lastApiError = null;
+    }
+
+    /**
+     * Force the next callApi() calls in this action to hit the network
+     * instead of a short-lived cached response. Call at the top of an action
+     * bound to an explicit user-initiated refresh (e.g. pull-to-refresh) —
+     * mount()-triggered loads should stay cached.
+     */
+    protected function bustApiCache(): void
+    {
+        app(LumexioApi::class)->bustCache();
     }
 }

@@ -202,6 +202,8 @@ it('wraps its content in a refreshable element wired to loadHistory', function (
         // Comparing against callbackIdFor('loadHistory') — rather than
         // just isset() — proves it's bound to THIS method specifically;
         // isset() alone would still pass for a typo like "loadHistry".
+        // loadHistory() always busts the short-lived GET cache before
+        // reloading, so pull-to-refresh actually re-hits the network.
         ->assertElement('refreshable', fn (array $n): bool => ($n['props']['on_refresh'] ?? null) === callbackIdFor('loadHistory'));
 });
 
@@ -219,8 +221,9 @@ it('refetches stock history on pull-to-refresh', function () {
 
     expect($screen->get('historyQuantities'))->toBe([10]);
 
-    // The refreshable's @refresh handler calls this same method — this
-    // proves a second call re-fetches rather than reusing cached data.
+    // The refreshable's @refresh handler calls this same method, which
+    // always busts the cache before reloading — this proves a second call
+    // re-fetches rather than reusing cached data.
     $screen->call('loadHistory');
 
     expect($screen->get('historyQuantities'))->toBe([25]);

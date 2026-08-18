@@ -38,10 +38,17 @@ class ItemDetail extends NativeComponent
         $this->thresholdInput = (string) ($this->item['low_stock_threshold'] ?? 0);
         $this->leadTimeInput = (string) ($this->item['supplier_lead_time_days'] ?? 0);
 
-        $this->loadHistory();
+        $this->load();
     }
 
+    /** Bound to pull-to-refresh; always bypasses the short-lived GET cache. */
     public function loadHistory(): void
+    {
+        $this->bustApiCache();
+        $this->load();
+    }
+
+    private function load(): void
     {
         $this->resetApiError();
         // Reset before the fetch so a stale index never survives into

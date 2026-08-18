@@ -21,7 +21,7 @@ class StockProductsTab extends NativeComponent
 
     public function mount(): void
     {
-        $this->refresh();
+        $this->load();
     }
 
     public function updatedSearch(): void
@@ -35,7 +35,14 @@ class StockProductsTab extends NativeComponent
         $this->refresh();
     }
 
+    /** Bound to pull-to-refresh; always bypasses the short-lived GET cache. */
     public function refresh(): void
+    {
+        $this->bustApiCache();
+        $this->load();
+    }
+
+    private function load(): void
     {
         $this->resetApiError();
         $this->loading = true;
