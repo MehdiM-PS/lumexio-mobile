@@ -575,16 +575,25 @@ it('renders the account sheet with the user name and email', function () {
     expect(findNodeByRef($tree, 'account-sheet-email')['props']['text'] ?? null)->toBe('marie@boutique-principale.fr');
 });
 
-it('navigates to stock and orders from the account sheet', function () {
+it('no longer shows Stock, Commandes, or Fournisseurs in the account sheet', function () {
     fakeDashboardEndpoints();
 
     $screen = Native::test(Dashboard::class);
-    $screen->call('goStock');
-    $screen->assertNavigatedTo('/stock');
+    $screen->call('openAccountSheet');
+
+    $tree = $screen->tree();
+    expect(findNodeByRef($tree, 'account-sheet-stock'))->toBeNull();
+    expect(findNodeByRef($tree, 'account-sheet-orders'))->toBeNull();
+    expect(findNodeByRef($tree, 'account-sheet-suppliers'))->toBeNull();
+});
+
+it('navigates to the profile screen from the account sheet', function () {
+    fakeDashboardEndpoints();
 
     $screen = Native::test(Dashboard::class);
-    $screen->call('goOrders');
-    $screen->assertNavigatedTo('/orders');
+    $screen->call('goProfile');
+
+    $screen->assertNavigatedTo('/profile');
 });
 
 it('caches the active shop name in LocalState on refresh', function () {

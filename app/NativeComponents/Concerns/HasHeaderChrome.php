@@ -60,16 +60,10 @@ trait HasHeaderChrome
         $this->navigate('/alerts');
     }
 
-    public function goStock(): void
+    public function goProfile(): void
     {
         $this->closeAccountSheet();
-        $this->navigate('/stock');
-    }
-
-    public function goOrders(): void
-    {
-        $this->closeAccountSheet();
-        $this->navigate('/orders');
+        $this->navigate('/profile');
     }
 
     /**

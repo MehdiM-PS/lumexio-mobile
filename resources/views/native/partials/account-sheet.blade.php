@@ -10,20 +10,11 @@
             </column>
         </row>
 
-        <pressable class="w-full rounded-lg px-2 py-[12]" @press="closeAccountSheet">
+        <pressable ref="account-sheet-profile" class="w-full rounded-lg px-2 py-[12]" @press="goProfile">
             <text class="text-sm font-medium text-theme-on-surface">Mon profil</text>
         </pressable>
-        <pressable class="w-full rounded-lg px-2 py-[12]" @press="closeAccountSheet">
+        <pressable ref="account-sheet-account" class="w-full rounded-lg px-2 py-[12]" @press="goAccount">
             <text class="text-sm font-medium text-theme-on-surface">Mon compte</text>
-        </pressable>
-        <pressable ref="account-sheet-stock" class="w-full rounded-lg px-2 py-[12]" @press="goStock">
-            <text class="text-sm font-medium text-theme-on-surface">Stock</text>
-        </pressable>
-        <pressable ref="account-sheet-orders" class="w-full rounded-lg px-2 py-[12]" @press="goOrders">
-            <text class="text-sm font-medium text-theme-on-surface">Commandes</text>
-        </pressable>
-        <pressable ref="account-sheet-suppliers" class="w-full rounded-lg px-2 py-[12]" @press="goStock">
-            <text class="text-sm font-medium text-theme-on-surface">Fournisseurs</text>
         </pressable>
         <pressable class="w-full rounded-lg px-2 py-[12]" @press="openShopSwitcher">
             <text class="text-sm font-medium text-theme-on-surface">Gérer mes boutiques</text>
