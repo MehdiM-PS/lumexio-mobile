@@ -3,6 +3,7 @@
 use App\Models\LocalState;
 use App\NativeComponents\Screens\Login;
 use Illuminate\Support\Facades\Http;
+use Native\Mobile\Facades\Browser;
 use Native\Mobile\Testing\Native;
 
 it('renders the login form', function () {
@@ -44,4 +45,22 @@ it('shows the API error message on invalid credentials', function () {
 
 it('is fully accessible', function () {
     Native::test(Login::class)->assertAccessible();
+});
+
+it('renders the logo image, headline, and trust badges', function () {
+    $screen = Native::test(Login::class);
+
+    // Not collectText(): it's protected on TestableComponent, unreachable
+    // from a Pest test. assertSee() already does a str_contains() search
+    // over the same collected text internally, so it covers both cases.
+    expect(findNodeByRef($screen->tree(), 'login-logo'))->not->toBeNull();
+    $screen
+        ->assertSee('Anticipez-les.')
+        ->assertSee('Hébergé en France');
+});
+
+it('opens the marketing site instead of submitting when the signup CTA is tapped', function () {
+    Browser::shouldReceive('open')->once()->with(Mockery::pattern('/^https:\/\//'));
+
+    Native::test(Login::class)->call('openSignup');
 });

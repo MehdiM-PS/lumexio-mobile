@@ -6,6 +6,7 @@ use App\NativeComponents\Concerns\HandlesApiErrors;
 use App\Services\AuthService;
 use Illuminate\View\View;
 use Native\Mobile\Edge\NativeComponent;
+use Native\Mobile\Facades\Browser;
 
 class Login extends NativeComponent
 {
@@ -33,6 +34,16 @@ class Login extends NativeComponent
         if ($user !== null) {
             $this->replace('/shops/select');
         }
+    }
+
+    public function logoUrl(): string
+    {
+        return rtrim(config('lumexio.asset_url'), '/').'/images/lumexio-logo.png';
+    }
+
+    public function openSignup(): void
+    {
+        Browser::open(config('lumexio.asset_url'));
     }
 
     public function render(): View

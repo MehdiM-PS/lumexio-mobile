@@ -2,6 +2,7 @@
 
 return [
     'api_url' => env('LUMEXIO_API_URL', 'https://lumexio.tech/api/v1'),
+    'asset_url' => env('LUMEXIO_ASSET_URL', 'https://lumexio.tech'),
     'timeout' => env('LUMEXIO_TIMEOUT', 30),
 
     /*
