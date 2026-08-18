@@ -31,16 +31,19 @@
                 </pressable>
             @endforeach
         </column>
-        {{-- Presentational only, matching the mock: the "+ Ajouter une
-        boutique" div at line ~464 has no onClick handler in the mockup
-        either — it's a static affordance, not a wired action, so no
-        backend "add a shop" flow needs to exist for this to be faithful.
-        The mock renders it with a dashed border; this UI framework's class
-        grammar has no border-style utility (TailwindParser only emits
-        border width/color/radius, never a dash pattern), so a solid
-        border is the closest available approximation. --}}
-        <column ref="shop-switcher-add-shop" class="w-full items-center rounded-lg border border-theme-outline p-[12] mt-[4]">
+        {{-- The mock's "+ Ajouter une boutique" div (line ~464) has no
+        onClick handler and renders with a dashed border — but per this
+        slice's rule that every link must be functional, this is wired to
+        HasHeaderChrome::openAddShop() rather than left inert (no native
+        shop-creation flow exists to build, so it opens the marketing site
+        in the system browser instead — same precedent as Login::openSignup()
+        for the mock's own inert "Essai gratuit 30 jours" CTA). This UI
+        framework's class grammar has no border-style utility (TailwindParser
+        only emits border width/color/radius, never a dash pattern), so a
+        solid border remains the closest available approximation of the
+        mock's dashed one. --}}
+        <pressable ref="shop-switcher-add-shop" class="w-full items-center rounded-lg border border-theme-outline p-[12] mt-[4]" @press="openAddShop">
             <text class="text-sm font-bold text-theme-primary">+ Ajouter une boutique</text>
-        </column>
+        </pressable>
     </column>
 </native:bottom-sheet>

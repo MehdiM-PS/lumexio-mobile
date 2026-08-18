@@ -5,6 +5,7 @@ namespace App\NativeComponents\Concerns;
 use App\Models\LocalState;
 use App\Services\AuthService;
 use App\Services\LumexioApi;
+use Native\Mobile\Facades\Browser;
 
 /**
  * Shared tab-bar header behavior — the shop-switcher and account bottom
@@ -93,6 +94,18 @@ trait HasHeaderChrome
 
         $this->closeShopSwitcher();
         $this->replace('/dashboard');
+    }
+
+    /**
+     * The shop-switcher sheet's "+ Ajouter une boutique" row. There's no
+     * native shop-creation flow to build, so this opens the marketing site
+     * in the system browser instead — a real, functional destination, same
+     * precedent as Login::openSignup() for the mockup's own inert "Essai
+     * gratuit 30 jours" CTA.
+     */
+    public function openAddShop(): void
+    {
+        Browser::open(config('lumexio.asset_url'));
     }
 
     public function currentShopId(): ?string
