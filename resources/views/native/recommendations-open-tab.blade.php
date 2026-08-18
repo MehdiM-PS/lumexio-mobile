@@ -74,12 +74,32 @@
                             <text class="text-xs font-semibold text-theme-on-surface-variant">ACTIONS RECOMMANDÉES</text>
                             <column class="w-full gap-1">
                                 {{-- Mock's action rows use a "⚡" glyph (line
-                                362); this app's own conventions (CLAUDE.md)
-                                forbid emoji in UI text, so a plain bullet is
-                                used instead — a deliberate, documented
-                                deviation, not an oversight. --}}
+                                362). This app's CLAUDE.md forbids raw emoji in
+                                UI text, but a lightning-bolt glyph has a
+                                direct native:icon equivalent — this project's
+                                established pattern for "the mockup wants a
+                                meaningful glyph, not raw emoji" (unlike the
+                                login screen's flag emoji, which is
+                                irreducible content, not a substitutable icon).
+                                Uses the plain shared `name` string (like
+                                every other icon in this codebase — bell,
+                                person, checkmark, xmark, chevron.down), not
+                                `:ios`/`:android` overrides: those only apply
+                                when Platform::current() has successfully
+                                detected a live device over the bridge, which
+                                never happens under Pest (confirmed by
+                                dumping Icon::make()->applyAttributes(['ios'
+                                => ..., 'android' => ...]) directly — it
+                                resolves to no `name` prop at all without a
+                                shared-string fallback) and the vendor
+                                docblock notes detection failure isn't cached
+                                even on-device, so a bare shared name is both
+                                simpler and more robust here. --}}
                                 @foreach ($rec['actions'] as $action)
-                                    <text class="text-xs text-theme-on-surface-variant">• {{ $action }}</text>
+                                    <row ref="reco-{{ $rec['id'] }}-action-{{ $loop->index }}" class="items-start gap-[7]">
+                                        <native:icon name="bolt.fill" size="12" class="text-theme-primary" />
+                                        <text class="flex-1 text-xs text-theme-on-surface-variant">{{ $action }}</text>
+                                    </row>
                                 @endforeach
                             </column>
                         </column>

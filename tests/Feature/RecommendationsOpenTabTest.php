@@ -280,6 +280,28 @@ it('shows the actions list when actions are present', function () {
         ->assertSee('Relancer la campagne email');
 });
 
+it('marks each action with a bolt icon, not the mock\'s raw "⚡" emoji or a plain bullet', function () {
+    // CLAUDE.md forbids raw emoji in UI text; "•" was the first-pass
+    // stand-in, but a lightning bolt has a direct native:icon equivalent so
+    // that's used instead. Uses the plain shared `name="bolt.fill"` string
+    // (like every other icon in this codebase), NOT `:ios`/`:android`
+    // overrides — those only resolve when Platform::current() detects a
+    // live device over the bridge, which never happens under Pest, so an
+    // override-only icon would resolve with no `name` prop at all here
+    // (verified empirically before choosing the shared-string form).
+    fakeRecommendationsOpenEndpoints(recommendations: [
+        sampleRecommendation(['id' => 1, 'actions' => ['Baisser le prix de 10%']]),
+    ]);
+
+    $tree = Native::test(RecommendationsOpenTab::class)->tree();
+    $row = findNodeByRef($tree, 'reco-1-action-0');
+
+    expect($row)->not->toBeNull();
+    $icon = collect($row['children'] ?? [])->firstWhere('type', 'icon');
+    expect($icon)->not->toBeNull();
+    expect($icon['props']['name'] ?? null)->toBe('bolt.fill');
+});
+
 it('omits the actions section when actions is empty', function () {
     fakeRecommendationsOpenEndpoints(recommendations: [
         sampleRecommendation(['id' => 1, 'actions' => []]),

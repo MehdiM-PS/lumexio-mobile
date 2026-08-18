@@ -18,7 +18,7 @@
         {{-- Mock (line 231-239): the date-range text and the Comparer
         label+toggle share one justify-between row, with Comparer grouped
         on the right — not "Comparer" alone on the left with the toggle. --}}
-        <row class="w-full justify-between items-center">
+        <row ref="sales-date-range-row" class="w-full justify-between items-center">
             <text ref="sales-date-range" class="text-xs font-bold text-theme-on-surface-variant">{{ $this->salesDateRangeLabel() }}</text>
             <row class="items-center gap-2">
                 <text class="text-sm font-semibold text-theme-on-surface">Comparer</text>

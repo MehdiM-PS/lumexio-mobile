@@ -128,3 +128,30 @@ it('positions the alert badge as an overlapping corner badge on the bell button,
     expect($badge['layout']['position_type'] ?? null)->toBe(1);
     expect($badge['layout']['position'] ?? null)->toBe([-3.0, -3.0, 0.0, 0.0]);
 });
+
+it('keeps the alert badge OUTSIDE the rounded-full bell button\'s clip boundary', function () {
+    // ClipRadiusModifier (NodeStyleModifier.swift) clips a node's whole
+    // composite content — background + children — to its own border-radius.
+    // header-alert-button is rounded-full (border_radius 9999), and the
+    // badge is deliberately positioned to overflow a 34x34 circle (that's
+    // the point of an overlapping corner badge) — so if the badge were
+    // still a DESCENDANT of that button, it would render clipped away on
+    // device even though every other assertion here stays green. The badge
+    // must be a sibling of the button (inside a non-rounded outer wrapper),
+    // not a child of it.
+    fakeTabsLayoutEndpoints();
+    LocalState::current()->update(['unread_alert_count' => 2]);
+
+    $screen = Native::test(Dashboard::class, layout: TabsLayout::class);
+    $tree = $screen->tree();
+
+    $button = findNodeByRef($tree, 'header-alert-button');
+    expect($button)->not->toBeNull();
+    expect($button['style']['border_radius'] ?? null)->toBe(9999.0);
+    // The badge must NOT be found inside the rounded-full button's own
+    // subtree.
+    expect(findNodeByRef($button, 'header-alert-badge'))->toBeNull();
+    // ...but it does exist elsewhere in the full tree (as the button's
+    // sibling), so this isn't just proving the badge doesn't render at all.
+    expect(findNodeByRef($tree, 'header-alert-badge'))->not->toBeNull();
+});

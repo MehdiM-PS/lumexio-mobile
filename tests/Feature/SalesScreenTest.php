@@ -109,6 +109,29 @@ it('shows the actual calendar date range for the selected period next to Compare
     expect($screen->instance()->salesDateRangeLabel())->toBe('01 – 17 août 2026');
 });
 
+it('renders the date range in the tree, grouped with the Comparer toggle in the same row', function () {
+    // Render-level counterpart to the salesDateRangeLabel() unit assertions
+    // above: this proves the `sales-date-range` ref actually renders with
+    // the expected text on screen AND that it's grouped with
+    // `sales-compare-toggle` in the restructured row (mock lines 231-239),
+    // not just that the underlying PHP method returns the right string.
+    Carbon::setTestNow(Carbon::parse('2026-08-17'));
+    fakeSalesEndpoints();
+
+    $screen = Native::test(Sales::class);
+    $screen->call('setSalesPeriod', 'month');
+    $tree = $screen->tree();
+
+    $dateRange = findNodeByRef($tree, 'sales-date-range');
+    expect($dateRange)->not->toBeNull();
+    expect($dateRange['props']['text'] ?? null)->toBe('01 – 17 août 2026');
+
+    $row = findNodeByRef($tree, 'sales-date-range-row');
+    expect($row)->not->toBeNull();
+    expect(findNodeByRef($row, 'sales-date-range'))->not->toBeNull();
+    expect(findNodeByRef($row, 'sales-compare-toggle'))->not->toBeNull();
+});
+
 it('shows a bare year for the last_year period', function () {
     // Mock (line 677): salesPeriodDefs.lastyear.range is the bare "2025" —
     // no day/month, since the whole prior year is implied.

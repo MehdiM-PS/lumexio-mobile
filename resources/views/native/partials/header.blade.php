@@ -19,11 +19,24 @@
         <pressable ref="header-account-button" class="relative h-[34] w-[34] items-center justify-center rounded-full bg-theme-surface border border-theme-outline" @press="openAccountSheet">
             <native:icon name="person" a11y-label="Mon compte" />
         </pressable>
-        <pressable ref="header-alert-button" class="relative h-[34] w-[34] items-center justify-center rounded-full bg-theme-surface border border-theme-outline" @press="goAlerts">
-            <native:icon name="bell" a11y-label="Alertes" />
+        {{-- The badge is a SIBLING of the bell pressable, not its child.
+        NodeStyleModifier's ClipRadiusModifier clips a node's whole composite
+        content (background + children) to its own border-radius — with the
+        button itself rounded-full (radius 9999), an absolutely-positioned
+        badge nested *inside* it would be clipped away the instant it
+        overflows the circle, which is the entire point of an overlapping
+        corner badge. This outer row carries no rounded-* class, so nothing
+        clips it, and the badge positions absolutely against IT instead of
+        against the clipped circle — same structure as the mock's own CSS
+        (badge as a sibling of a position:relative, non-clipping ancestor,
+        not a child of the clipped circle). --}}
+        <row class="relative">
+            <pressable ref="header-alert-button" class="h-[34] w-[34] items-center justify-center rounded-full bg-theme-surface border border-theme-outline" @press="goAlerts">
+                <native:icon name="bell" a11y-label="Alertes" />
+            </pressable>
             @if ($alertCount > 0)
                 <badge ref="header-alert-badge" class="absolute -top-[3] -right-[3]" label="{{ $alertCount }}" variant="destructive" />
             @endif
-        </pressable>
+        </row>
     </row>
 </row>
