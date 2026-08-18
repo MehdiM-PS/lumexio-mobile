@@ -16,7 +16,7 @@
     </pressable>
 
     <row class="items-center gap-3">
-        <pressable ref="header-account-button" class="relative h-[34] w-[34] items-center justify-center rounded-full bg-theme-surface border border-theme-outline" @press="openAccountSheet">
+        <pressable ref="header-account-button" class="h-[34] w-[34] items-center justify-center rounded-full bg-theme-surface border border-theme-outline" @press="openAccountSheet">
             <native:icon name="person" a11y-label="Mon compte" />
         </pressable>
         {{-- The badge is a SIBLING of the bell pressable, not its child.

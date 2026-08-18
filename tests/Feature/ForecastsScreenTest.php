@@ -1,7 +1,9 @@
 <?php
 
 use App\NativeComponents\Screens\Forecasts;
+use Illuminate\Http\Client\ResponseSequence;
 use Illuminate\Support\Facades\Http;
+use Native\Mobile\Facades\Browser;
 use Native\Mobile\Testing\Native;
 
 // Fakes '*/auth/me*' too (unlike the retired ForecastSectionTest's version
@@ -612,4 +614,239 @@ it('shows an empty-state message when no stock items match the filters', functio
 
     Native::test(Forecasts::class)
         ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-empty');
+});
+
+// Regression: stockPagePrev()/stockPageNext() used to leave $stockPage
+// incremented/decremented even when the resulting loadStock() call failed,
+// showing an incremented page number over an empty table (the reload's
+// failure clears stockItems, same convention as the failed-forecasts test
+// above). Both actions must roll $stockPage back to its pre-request value
+// whenever the reload leaves $lastApiError set.
+//
+// Deliberately not fakeForecastsEndpoint() + a second Http::fake() override
+// for the failing call: Http::fake() stubs are matched in registration
+// order (first match wins), so a later, equally-broad '*/products?*per_page=20*'
+// stub never actually overrides the fakeForecastsEndpoint() one already
+// registered — same trap documented on the "wrapped in a refreshable" test
+// above. A response sequence queues one response per request instead.
+function fakeForecastsWithProductsSequence(ResponseSequence $products): void
+{
+    Http::fake([
+        '*/auth/me*' => Http::response(['user' => ['name' => 'Test User', 'email' => 'test@example.test']], 200),
+        '*/forecasts*' => Http::response([
+            'forecasts' => [], 'historical' => [],
+            'summary' => ['forecast_7d' => 0, 'forecast_30d' => 0, 'historical_7d' => 0, 'historical_30d' => 0, 'trend' => 'stable', 'confidence' => 0],
+            'top_product_forecasts' => [], 'upcoming_events' => [],
+        ], 200),
+        '*/products/categories*' => Http::response(['categories' => []], 200),
+        '*/products?*per_page=20*' => $products,
+    ]);
+}
+
+it('rolls stockPage back when stockPageNext triggers a failing reload', function () {
+    fakeForecastsWithProductsSequence(
+        Http::sequence()
+            ->push(['products' => [sampleStockProduct()], 'pagination' => ['current_page' => 1, 'last_page' => 3, 'per_page' => 20, 'total' => 50]], 200)
+            ->push(['message' => 'boom'], 500)
+    );
+
+    $screen = Native::test(Forecasts::class);
+    expect($screen->get('stockPage'))->toBe(1);
+
+    $screen->call('stockPageNext');
+
+    expect($screen->get('stockPage'))->toBe(1);
+    expect($screen->get('lastApiError'))->not->toBeNull();
+});
+
+it('rolls stockPage back when stockPagePrev triggers a failing reload', function () {
+    fakeForecastsWithProductsSequence(
+        Http::sequence()
+            ->push(['products' => [sampleStockProduct()], 'pagination' => ['current_page' => 1, 'last_page' => 3, 'per_page' => 20, 'total' => 50]], 200)
+            ->push(['message' => 'boom'], 500)
+    );
+
+    $screen = Native::test(Forecasts::class);
+    // Jumps to page 3 without a network call (no updatedStockPage() hook —
+    // same "simulate having paginated before" trick the search test above
+    // uses) so stockPagePrev()'s request below (page 2) is a fresh query,
+    // not a repeat of the already-cached page-1 request from mount — a
+    // repeat would hit the short-lived GET cache instead of the second,
+    // failing sequence entry (loadStock() never calls bustApiCache()).
+    $screen->set('stockPage', 3);
+
+    $screen->call('stockPagePrev'); // attempts page 2, fails
+
+    expect($screen->get('stockPage'))->toBe(3);
+    expect($screen->get('lastApiError'))->not->toBeNull();
+});
+
+// A failed reload must not also strand the Prev/Next buttons and the
+// page-range label — stockLastPage/stockTotal/stockPerPage should keep
+// their pre-failure values rather than resetting to the empty-response
+// defaults (last_page=1, total=0), which combined with the $stockPage
+// rollback above would otherwise disable Next and show "0 sur 0".
+it('keeps pagination metadata intact after a failed reload, alongside the stockPage rollback', function () {
+    fakeForecastsWithProductsSequence(
+        Http::sequence()
+            ->push(['products' => [sampleStockProduct()], 'pagination' => ['current_page' => 1, 'last_page' => 3, 'per_page' => 20, 'total' => 50]], 200)
+            ->push(['message' => 'boom'], 500)
+    );
+
+    $screen = Native::test(Forecasts::class);
+
+    $screen->call('stockPageNext');
+
+    expect($screen->get('stockLastPage'))->toBe(3);
+    expect($screen->get('stockTotal'))->toBe(50);
+    $screen->assertElement('button', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-page-next' && ($n['props']['disabled'] ?? false) === false);
+});
+
+// ── Task 7 gap-fill: pixel-audit fixes for the stock table (Demande 30j
+// column, mockup wording, color-coded urgency, page-range pagination) ──
+
+it('renders the demand_30d column between average sales and days-left', function () {
+    fakeForecastsEndpoint(stockProducts: [sampleStockProduct(['demand_30d' => 17])]);
+
+    $tree = Native::test(Forecasts::class)->tree();
+    $row = findNodeByRef($tree, 'stock-row-1');
+
+    // Row children, in order: [0] name/reference column, [1] stock,
+    // [2] average monthly sales, [3] demand_30d, [4] days-left — this
+    // ordering is what makes "between Ventes moy. and Jours restants" true.
+    expect($row['children'][3]['props']['text'] ?? null)->toBe('17');
+});
+
+it("uses the mockup's exact header wording for the average-sales and days-left columns", function () {
+    fakeForecastsEndpoint();
+
+    $tree = Native::test(Forecasts::class)->tree();
+
+    $avgSalesHeader = findNodeByRef($tree, 'stock-sort-avg-sales');
+    $daysLeftHeader = findNodeByRef($tree, 'stock-sort-days-left');
+
+    expect($avgSalesHeader['children'][0]['props']['text'] ?? null)->toBe('Vente moy./mois');
+    expect($daysLeftHeader['children'][0]['props']['text'] ?? null)->toBe('Jrs avant rupture');
+});
+
+it('renders every stock table header uppercase via a display transform, not literal casing', function () {
+    fakeForecastsEndpoint(stockCategories: []);
+
+    $tree = Native::test(Forecasts::class)->tree();
+
+    $nameHeaderText = findNodeByRef($tree, 'stock-sort-name')['children'][0];
+    // Literal source text stays natural-cased ("Produit", not "PRODUIT") —
+    // the uppercase look comes from `text_transform`, per the mockup spec.
+    expect($nameHeaderText['props']['text'] ?? null)->toStartWith('Produit');
+    expect($nameHeaderText['props']['text_transform'] ?? null)->toBe(1);
+});
+
+it('renders the Demande 30j header as plain, non-sortable text with no sort arrow or press handler', function () {
+    fakeForecastsEndpoint();
+
+    Native::test(Forecasts::class)
+        ->assertElement('text', fn (array $n): bool => ($n['props']['text'] ?? null) === 'Demande 30j' && ! isset($n['on_press']));
+});
+
+it('color-codes the stock column destructive only when the product is out of stock', function () {
+    fakeForecastsEndpoint(stockProducts: [
+        sampleStockProduct(['id' => 1, 'quantity' => 0]),
+        sampleStockProduct(['id' => 2, 'quantity' => 5]),
+    ]);
+
+    $tree = Native::test(Forecasts::class)->tree();
+
+    $outOfStockCell = findNodeByRef($tree, 'stock-row-1')['children'][1];
+    $inStockCell = findNodeByRef($tree, 'stock-row-2')['children'][1];
+
+    expect($outOfStockCell['props']['color'] ?? null)->toBe('#E24947'); // theme destructive
+    expect($inStockCell['props']['color'] ?? null)->toBe('#14151A'); // theme on-surface
+});
+
+it('shows "Rupture" and a destructive color in the days-left column when out of stock, even with a non-null day count', function () {
+    fakeForecastsEndpoint(stockProducts: [sampleStockProduct(['id' => 1, 'quantity' => 0, 'days_until_stockout' => 3])]);
+
+    $daysCell = findNodeByRef(Native::test(Forecasts::class)->tree(), 'stock-row-1')['children'][4];
+
+    expect($daysCell['props']['text'] ?? null)->toBe('Rupture');
+    expect($daysCell['props']['color'] ?? null)->toBe('#E24947');
+});
+
+it('color-codes the days-left column destructive when 7 days or fewer remain', function () {
+    fakeForecastsEndpoint(stockProducts: [sampleStockProduct(['id' => 1, 'quantity' => 5, 'days_until_stockout' => 5])]);
+
+    $daysCell = findNodeByRef(Native::test(Forecasts::class)->tree(), 'stock-row-1')['children'][4];
+
+    expect($daysCell['props']['text'] ?? null)->toBe('5 j');
+    expect($daysCell['props']['color'] ?? null)->toBe('#E24947');
+});
+
+it('color-codes the days-left column accent (warning) when 21 days or fewer, but more than 7, remain', function () {
+    fakeForecastsEndpoint(stockProducts: [sampleStockProduct(['id' => 1, 'quantity' => 5, 'days_until_stockout' => 15])]);
+
+    $daysCell = findNodeByRef(Native::test(Forecasts::class)->tree(), 'stock-row-1')['children'][4];
+
+    expect($daysCell['props']['text'] ?? null)->toBe('15 j');
+    expect($daysCell['props']['color'] ?? null)->toBe('#EC7C0E'); // theme accent
+});
+
+// Regression: a naive `days_until_stockout <= 7` check without a null guard
+// is true in PHP for null (loosely compares as 0), which would wrongly
+// destructive-color a product with an unknown days-left value.
+it('shows a neutral color and an em dash in the days-left column when the day count is unknown', function () {
+    fakeForecastsEndpoint(stockProducts: [sampleStockProduct(['id' => 1, 'quantity' => 5, 'days_until_stockout' => null])]);
+
+    $daysCell = findNodeByRef(Native::test(Forecasts::class)->tree(), 'stock-row-1')['children'][4];
+
+    expect($daysCell['props']['text'] ?? null)->toBe('—');
+    expect($daysCell['props']['color'] ?? null)->toBe('#14151A'); // theme on-surface
+});
+
+it('shows a page-range summary ("start–end sur total") instead of "Page N / M"', function () {
+    fakeForecastsEndpoint(
+        stockProducts: [sampleStockProduct(['id' => 1]), sampleStockProduct(['id' => 2])],
+        stockPagination: ['current_page' => 1, 'last_page' => 5, 'per_page' => 2, 'total' => 10],
+    );
+
+    Native::test(Forecasts::class)
+        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-page-range' && ($n['props']['text'] ?? null) === '1–2 sur 10');
+});
+
+it('advances the page-range summary to reflect the new page after paginating', function () {
+    fakeForecastsEndpoint(
+        stockProducts: [sampleStockProduct(['id' => 1]), sampleStockProduct(['id' => 2])],
+        stockPagination: ['current_page' => 1, 'last_page' => 5, 'per_page' => 2, 'total' => 10],
+    );
+
+    $screen = Native::test(Forecasts::class);
+    $screen->call('stockPageNext');
+
+    $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-page-range' && ($n['props']['text'] ?? null) === '3–4 sur 10');
+});
+
+it('uses icon buttons (not text labels) for the pagination prev/next controls', function () {
+    fakeForecastsEndpoint(stockProducts: [sampleStockProduct()], stockPagination: ['current_page' => 1, 'last_page' => 3, 'per_page' => 20, 'total' => 50]);
+
+    Native::test(Forecasts::class)
+        ->assertElement('button', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-page-prev'
+            && ($n['props']['leading_icon'] ?? null) === 'chevron.left'
+            && ($n['props']['label'] ?? null) === null)
+        ->assertElement('button', fn (array $n): bool => ($n['ref'] ?? null) === 'stock-page-next'
+            && ($n['props']['leading_icon'] ?? null) === 'chevron.right'
+            && ($n['props']['label'] ?? null) === null);
+});
+
+// ── Shop-switcher "+ Ajouter une boutique" (Task 7 gap-fill) ────────────
+
+it('wires the "+ Ajouter une boutique" row to open the marketing site in the system browser', function () {
+    fakeForecastsEndpoint();
+    Http::fake(['*/api/v1/shops' => Http::response(['shops' => []])]);
+
+    $screen = Native::test(Forecasts::class);
+    $screen->call('openShopSwitcher');
+
+    $screen->assertElement('pressable', fn (array $n): bool => ($n['ref'] ?? null) === 'shop-switcher-add-shop' && ($n['on_press'] ?? null) === callbackIdFor('openAddShop'));
+
+    Browser::shouldReceive('open')->once()->with(config('lumexio.asset_url'));
+    $screen->call('openAddShop');
 });

@@ -53,6 +53,12 @@ class Forecasts extends NativeComponent
 
     public int $stockLastPage = 1;
 
+    /** Read from the /products response's pagination.total, for stockRangeLabel(). */
+    public int $stockTotal = 0;
+
+    /** Read from the /products response's pagination.per_page, for stockRangeLabel(). */
+    public int $stockPerPage = 20;
+
     /** sort values the /products endpoint accepts server-side (Task 1) — avg_sales is client-side-only, see setStockSort(). */
     private const array SERVER_SORTABLE_COLUMNS = ['name', 'stock', 'days_left'];
 
@@ -180,8 +186,25 @@ class Forecasts extends NativeComponent
             'per_page' => 20,
         ], fn ($value) => $value !== null)));
 
+        if ($data === null) {
+            // Failed request: clear the listing (matches the rest of this
+            // screen's error convention — error banner + empty data, see
+            // load()/loadStockCategories()) but leave stockLastPage/
+            // stockTotal/stockPerPage untouched. stockPagePrev()/
+            // stockPageNext() roll $stockPage back to its pre-request value
+            // on failure — if this method also reset those pagination
+            // fields to their empty-response defaults, the rollback would
+            // still leave stockRangeLabel() showing "0 sur 0" and the
+            // Prev/Next buttons disabled against a stale stockLastPage of 1.
+            $this->stockItems = [];
+
+            return;
+        }
+
         $this->stockItems = $data['products'] ?? [];
         $this->stockLastPage = $data['pagination']['last_page'] ?? 1;
+        $this->stockTotal = $data['pagination']['total'] ?? 0;
+        $this->stockPerPage = $data['pagination']['per_page'] ?? 20;
 
         if ($this->stockSort === 'avg_sales') {
             $this->sortStockItemsByAvgSales();
@@ -263,8 +286,13 @@ class Forecasts extends NativeComponent
     {
         if ($this->stockPage > 1) {
             $this->resetApiError();
+            $previousPage = $this->stockPage;
             $this->stockPage--;
             $this->loadStock();
+
+            if ($this->lastApiError !== null) {
+                $this->stockPage = $previousPage;
+            }
         }
     }
 
@@ -272,9 +300,79 @@ class Forecasts extends NativeComponent
     {
         if ($this->stockPage < $this->stockLastPage) {
             $this->resetApiError();
+            $previousPage = $this->stockPage;
             $this->stockPage++;
             $this->loadStock();
+
+            if ($this->lastApiError !== null) {
+                $this->stockPage = $previousPage;
+            }
         }
+    }
+
+    /**
+     * Page-range label for the stock table's footer, matching the mockup's
+     * "1–6 sur 10" (start–end of X total) format rather than "Page N / M".
+     * The start is derived from $stockPage (the locally-tracked current
+     * page, kept in sync with the request's `page` param by every action
+     * that mutates it) and $stockPerPage; the end from how many items
+     * actually came back on this page, so a partial last page (e.g. 6 items
+     * on a 20-per-page final page) reports its real range rather than an
+     * overshoot past the total.
+     */
+    public function stockRangeLabel(): string
+    {
+        $count = count($this->stockItems);
+
+        if ($this->stockTotal === 0 || $count === 0) {
+            return '0 sur '.$this->stockTotal;
+        }
+
+        $start = ($this->stockPage - 1) * $this->stockPerPage + 1;
+        $end = $start + $count - 1;
+
+        return "{$start}–{$end} sur {$this->stockTotal}";
+    }
+
+    /** Stock column color: destructive when out of stock, neutral otherwise. */
+    public function stockQuantityColorClass(array $item): string
+    {
+        return ($item['quantity'] ?? 0) === 0 ? 'text-theme-destructive' : 'text-theme-on-surface';
+    }
+
+    /**
+     * Days-left column color: destructive when out of stock or <= 7 days
+     * remain, accent (warning) when <= 21 days remain, neutral otherwise.
+     * Out-of-stock takes priority over the day count regardless of what
+     * days_until_stockout happens to hold — see stockDaysLeftText().
+     */
+    public function stockDaysLeftColorClass(array $item): string
+    {
+        $quantity = $item['quantity'] ?? 0;
+        $daysLeft = $item['days_until_stockout'] ?? null;
+
+        return match (true) {
+            $quantity === 0 || ($daysLeft !== null && $daysLeft <= 7) => 'text-theme-destructive',
+            $daysLeft !== null && $daysLeft <= 21 => 'text-theme-accent',
+            default => 'text-theme-on-surface',
+        };
+    }
+
+    /**
+     * Days-left column text: "Rupture" when out of stock — more urgent and
+     * more informative than a day count for that cell, even if
+     * days_until_stockout happens to be non-null. Otherwise "{days} j" when
+     * known, "—" when not.
+     */
+    public function stockDaysLeftText(array $item): string
+    {
+        if (($item['quantity'] ?? 0) === 0) {
+            return 'Rupture';
+        }
+
+        $daysLeft = $item['days_until_stockout'] ?? null;
+
+        return $daysLeft !== null ? "{$daysLeft} j" : '—';
     }
 
     public function selectStockItem(int $id): void
