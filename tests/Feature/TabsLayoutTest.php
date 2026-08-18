@@ -101,6 +101,19 @@ it('renders the shop-pill logo image', function () {
     expect(findNodeByRef($screen->tree(), 'header-shop-logo'))->not->toBeNull();
 });
 
+it('renders the shop-pill chevron with a resolved color, proving class-based styling reaches native:icon', function () {
+    // native:icon is otherwise unused anywhere else in this codebase with a
+    // `class`-derived color, so this isn't a given — it must actually reach
+    // Icon::resolveProps()'s `color` prop, not just silently drop.
+    fakeTabsLayoutEndpoints();
+
+    $screen = Native::test(Dashboard::class, layout: TabsLayout::class);
+
+    $chevron = findNodeByRef($screen->tree(), 'header-shop-chevron');
+    expect($chevron)->not->toBeNull();
+    expect($chevron['props']['color'] ?? null)->toBe(theme('on-surface-variant'));
+});
+
 it('positions the alert badge as an overlapping corner badge on the bell button, not an inline pill', function () {
     fakeTabsLayoutEndpoints();
     LocalState::current()->update(['unread_alert_count' => 2]);

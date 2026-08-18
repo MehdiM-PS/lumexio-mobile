@@ -12,7 +12,7 @@
     <pressable class="flex-row items-center gap-[6] rounded-full bg-theme-surface border border-theme-outline pl-2 pr-3 py-[7]" @press="openShopSwitcher">
         <native:image ref="header-shop-logo" src="{{ $shopLogoUrl }}" :fit="1" alt="" class="h-[20] w-[20] rounded-[6]" />
         <text class="text-sm font-semibold text-theme-on-surface">{{ $state->active_shop_name ?? 'Choisir une boutique' }}</text>
-        <native:icon name="chevron.down" size="10" class="text-theme-on-surface-variant" />
+        <native:icon ref="header-shop-chevron" name="chevron.down" size="10" class="text-theme-on-surface-variant" />
     </pressable>
 
     <row class="items-center gap-3">

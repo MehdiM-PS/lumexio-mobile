@@ -228,8 +228,14 @@ it('shows the type as its own badge-style pill next to the priority badge', func
     ]);
 
     $tree = Native::test(RecommendationsOpenTab::class)->tree();
+    $type = findNodeByRef($tree, 'reco-1-type');
 
-    expect(findNodeByRef($tree, 'reco-1-type')['props']['text'] ?? null)->toBe('Price opportunity');
+    expect($type['props']['text'] ?? null)->toBe('Price opportunity');
+    // No other <text> in this codebase carries a bg-* class before this —
+    // every existing background sits on a column/row/pressable — so this
+    // proves a text node actually paints its own pill background rather
+    // than the class silently dropping.
+    expect($type['style']['bg_color'] ?? null)->toBe(theme('surface-variant'));
 });
 
 it('shows the freshness label in the card footer next to the action buttons', function () {
@@ -248,8 +254,11 @@ it('shows the product reference chip prefixed with "Réf :" when ref is present'
         sampleRecommendation(['id' => 1, 'ref' => 'SKU-CHIP-7']),
     ]);
 
-    Native::test(RecommendationsOpenTab::class)
-        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'reco-1-ref' && ($n['props']['text'] ?? null) === 'Réf : SKU-CHIP-7');
+    $tree = Native::test(RecommendationsOpenTab::class)->tree();
+    $ref = findNodeByRef($tree, 'reco-1-ref');
+
+    expect($ref['props']['text'] ?? null)->toBe('Réf : SKU-CHIP-7');
+    expect($ref['style']['bg_color'] ?? null)->toBe(theme('surface-variant'));
 });
 
 it('hides the product reference chip when ref is null', function () {

@@ -121,6 +121,33 @@ it('shows a bare year for the last_year period', function () {
     expect($screen->instance()->salesDateRangeLabel())->toBe('2025');
 });
 
+it('shows a single date for the today period', function () {
+    // Mock (line 670): salesPeriodDefs.today.range is "17 août 2026" — the
+    // isSameDay branch of formatDateRange(), otherwise untested.
+    Carbon::setTestNow(Carbon::parse('2026-08-17'));
+    fakeSalesEndpoints();
+
+    $screen = Native::test(Sales::class);
+    $screen->call('setSalesPeriod', 'today');
+
+    expect($screen->instance()->salesDateRangeLabel())->toBe('17 août 2026');
+});
+
+it('spells out both month names for the year-to-date period when it crosses months', function () {
+    // Mock (line 676): salesPeriodDefs.year.range is "01 janv. – 17 août
+    // 2026" (start of year to today) — the isSameYear-but-not-isSameMonth
+    // branch of formatDateRange(), otherwise untested. This app's version
+    // uses the full "janvier" rather than the mock's abbreviated "janv."
+    // (see Sales::salesDateRangeLabel()'s docblock for why).
+    Carbon::setTestNow(Carbon::parse('2026-08-17'));
+    fakeSalesEndpoints();
+
+    $screen = Native::test(Sales::class);
+    $screen->call('setSalesPeriod', 'year');
+
+    expect($screen->instance()->salesDateRangeLabel())->toBe('01 janvier – 17 août 2026');
+});
+
 it('shows the x-axis labels under the CA and basket charts', function () {
     // Mock (lines 276-280, 292-296): each chart renders a label row under
     // the bars using the same series labels already used for a11y-label.
