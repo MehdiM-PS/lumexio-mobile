@@ -66,6 +66,12 @@ trait HasHeaderChrome
         $this->navigate('/profile');
     }
 
+    public function goAccount(): void
+    {
+        $this->closeAccountSheet();
+        $this->navigate('/account');
+    }
+
     /**
      * Switches the active shop and force-remounts on `/dashboard`.
      * `NativeComponent` has no "current route" accessor to generalize

@@ -1,6 +1,7 @@
 <?php
 
 use App\NativeComponents\Layouts\TabsLayout;
+use App\NativeComponents\Screens\Account;
 use App\NativeComponents\Screens\Alerts;
 use App\NativeComponents\Screens\Boot;
 use App\NativeComponents\Screens\Dashboard;
@@ -23,6 +24,7 @@ Route::native('/login', Login::class);
 Route::native('/shops/select', SelectShop::class);
 Route::native('/stock/item/{type}/{id}', ItemDetail::class);
 Route::native('/profile', Profile::class);
+Route::native('/account', Account::class);
 Route::native('/orders/{id}', OrderDetail::class);
 Route::native('/supplier-orders/{id}', SupplierOrderDetail::class);
 Route::native('/suppliers/create', SupplierForm::class);

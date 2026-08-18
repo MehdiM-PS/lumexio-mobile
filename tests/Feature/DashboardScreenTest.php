@@ -596,6 +596,15 @@ it('navigates to the profile screen from the account sheet', function () {
     $screen->assertNavigatedTo('/profile');
 });
 
+it('navigates to the account screen from the account sheet', function () {
+    fakeDashboardEndpoints();
+
+    $screen = Native::test(Dashboard::class);
+    $screen->call('goAccount');
+
+    $screen->assertNavigatedTo('/account');
+});
+
 it('caches the active shop name in LocalState on refresh', function () {
     LocalState::current()->update(['shop_id' => 'shop-1']);
     fakeDashboardEndpoints(shops: [
