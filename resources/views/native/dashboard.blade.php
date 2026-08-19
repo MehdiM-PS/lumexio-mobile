@@ -32,7 +32,7 @@
             <column class="gap-1">
                 <text ref="dashboard-hero-day-label" class="text-xs text-theme-on-surface-variant">CA {{ $dayScope === 1 ? "d'hier" : "aujourd'hui" }}</text>
                 <text ref="dashboard-hero-revenue" class="text-5xl font-bold text-theme-on-background" content-transition="numeric">
-                    {{ number_format($metrics['revenue_today'] ?? 0, 2, ',', ' ') }} €
+                    {{ number_format(abs($metrics['revenue_today']) ?? 0, 0, ',', ' ') }} €
                 </text>
             </column>
             @if ($heroDelta !== null)
@@ -41,7 +41,7 @@
                         {{ $heroDelta >= 0 ? '↑' : '↓' }} {{ number_format(abs($heroDelta), 0, ',', ' ') }}%
                     </text>
                     <text ref="dashboard-hero-revenue-forecast" class="text-sm font-semibold text-theme-on-surface-variant">
-                        {{ number_format($widgets['ca_forecast_predicted'] ?? 0, 2, ',', ' ') }} €
+                        {{ number_format(abs($widgets['ca_forecast_predicted']) ?? 0, 0, ',', ' ') }} €
                     </text>
                     <text ref="dashboard-hero-revenue-forecast" class="text-sm font-semibold text-theme-on-surface-variant">
                         prévus
