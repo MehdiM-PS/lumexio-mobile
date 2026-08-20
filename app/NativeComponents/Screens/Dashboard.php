@@ -49,7 +49,7 @@ class Dashboard extends NativeComponent
 
     public function mount(): void
     {
-        $this->dayScope = now()->hour < self::DAY_SWITCH_HOUR ? 1 : 0;
+        $this->dayScope = now()->hour < self::DAY_SWITCH_HOUR ? 0 : 1;
 
         $this->load();
     }
