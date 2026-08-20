@@ -12,6 +12,50 @@
     "license": "MIT",
     "repositories": [
         {
+            "type": "path",
+            "url": "packages/lumexio/native-line-chart"
+        },
+        {
+            "type": "package",
+            "package": {
+                "name": "fatlum/nativephp-push",
+                "description": "Free FCM/APNs push notifications for NativePHP Mobile — the native layer that the paid nativephp/mobile-firebase plugin charges for, wired into the existing (MIT) core PHP API.",
+                "keywords": ["notifications", "push", "apns", "firebase", "FCM", "nativephp"],
+                "homepage": "https://github.com/FatlumGjinofci/nativephp-push",
+                "version": "0.1.3",
+                "license": ["MIT"],
+                "authors": [
+                    {"name": "Fatlum Gjinofci", "email": "fgjinofci@gmail.com"}
+                ],
+                "source": {
+                    "url": "https://github.com/FatlumGjinofci/nativephp-push.git",
+                    "type": "git",
+                    "reference": "8b33a64e1b1753f560b153c80afbb1e1845d7ad8"
+                },
+                "dist": {
+                    "url": "https://api.github.com/repos/FatlumGjinofci/nativephp-push/zipball/8b33a64e1b1753f560b153c80afbb1e1845d7ad8",
+                    "type": "zip",
+                    "reference": "8b33a64e1b1753f560b153c80afbb1e1845d7ad8"
+                },
+                "type": "nativephp-plugin",
+                "autoload": {
+                    "psr-4": {"Lumi\\NativePush\\": "src/"}
+                },
+                "extra": {
+                    "laravel": {
+                        "providers": ["Lumi\\NativePush\\PushServiceProvider"]
+                    },
+                    "nativephp": {
+                        "manifest": "nativephp.json"
+                    }
+                },
+                "require": {
+                    "php": "^8.2",
+                    "nativephp/mobile": "^3.2 || ^4.0"
+                }
+            }
+        },
+        {
             "name": "nativephp-plugins",
             "type": "composer",
             "url": "https://plugins.nativephp.com"
@@ -19,9 +63,11 @@
     ],
     "require": {
         "php": "^8.4",
+        "fatlum/nativephp-push": "^0.1.3",
         "laravel/boost": "^2.0",
         "laravel/framework": "^13.0",
         "laravel/tinker": "^3.0",
+        "lumexio/native-line-chart": "@dev",
         "nativephp/mobile": "^4.0",
         "nativephp/mobile-browser": "^1.0",
         "nativephp/mobile-ui": "^0.3"

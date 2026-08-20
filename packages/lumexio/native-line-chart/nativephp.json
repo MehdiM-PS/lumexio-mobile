@@ -1,0 +1,26 @@
+{
+    "name": "lumexio/native-line-chart",
+    "version": "1.0.0",
+    "description": "Smooth native line/area chart EDGE component matching the Lumexio web app's forecast chart.",
+    "namespace": "LineChart",
+
+    "platforms": ["android", "ios"],
+
+    "android": {
+        "min_version": 26
+    },
+    "ios": {
+        "min_version": "18.0"
+    },
+
+    "components": [
+        {
+            "type": "lumexio_line_chart",
+            "element": "Lumexio\\NativeLineChart\\Elements\\LineChart",
+            "blade": "Lumexio\\NativeLineChart\\Components\\LineChart",
+            "android_renderer": "com.lumexio.plugins.linechart.ui.LineChartRenderer",
+            "ios_renderer": "LineChartRenderer",
+            "self_closing": true
+        }
+    ]
+}

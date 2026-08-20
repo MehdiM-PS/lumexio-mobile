@@ -39,6 +39,7 @@ class AuthService
         } catch (\Throwable) {
             // Best-effort remote revoke — the local session is cleared regardless.
         } finally {
+            app(PushNotificationService::class)->unregister();
             LocalState::current()->clearToken();
         }
     }

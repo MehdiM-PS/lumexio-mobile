@@ -113,42 +113,74 @@ it('fetches the shop-level forecast and historical data on mount', function () {
     Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/forecasts') && ! isset($request['product_id']));
 });
 
-// Tailwind classes resolve into a `style.bg_color` hex on the wire node
-// (confirmed by dumping the compiled tree for this exact scenario) — there
-// is no literal `class` string left in `props` to str_contains() against,
-// unlike text/font props. So this compares the actually-resolved colors:
-// the historical bar must resolve the primary token (#2D5D5A, config/native-ui.php)
-// and the forecast bar the accent token (#EC7C0E), proving the chart visually
-// distinguishes historical-vs-forecast days rather than reusing one color.
-it('renders a bar per historical and forecast day, with distinct colors for historical vs forecast', function () {
-    fakeForecastsEndpoint(historical: [sampleHistoricalDay(['date' => today()->format('Y-m-d')])], forecasts: [sampleForecastDay(['forecast_date' => today()->addDay()->format('Y-m-d')])]);
+// The chart is a single `lumexio_line_chart` wire node (Lumexio\NativeLineChart
+// plugin — see packages/lumexio/native-line-chart) carrying the whole series
+// as a JSON-encoded `data` prop, plus resolved theme hex colors: the
+// historical-color prop must resolve the primary token (#2D5D5A,
+// config/native-ui.php) and forecast-color the accent token (#EC7C0E). The
+// forecast array repeats the last historical value at the join index (see
+// chartData()) so the native renderer's two curves visually connect instead
+// of leaving a gap.
+it('renders the line chart with theme colors and a null-padded, joined historical/forecast series', function () {
+    fakeForecastsEndpoint(
+        historical: [sampleHistoricalDay(['date' => today()->format('Y-m-d'), 'revenue' => 100.0])],
+        forecasts: [sampleForecastDay(['forecast_date' => today()->addDay()->format('Y-m-d'), 'predicted_revenue' => 120.0])],
+    );
 
     $tree = Native::test(Forecasts::class)->tree();
 
-    $bar0 = findNodeByRef($tree, 'forecast-bar-0');
-    $bar1 = findNodeByRef($tree, 'forecast-bar-1');
+    $chart = findNodeByRef($tree, 'forecast-chart');
 
-    expect($bar0)->not->toBeNull();
-    expect($bar1)->not->toBeNull();
-    expect($bar0['style']['bg_color'] ?? null)->toContain('2D5D5A');
-    expect($bar1['style']['bg_color'] ?? null)->toContain('EC7C0E');
-    expect($bar0['style']['bg_color'] ?? null)->not->toBe($bar1['style']['bg_color'] ?? null);
+    expect($chart)->not->toBeNull();
+    expect($chart['type'])->toBe('lumexio_line_chart');
+    expect($chart['props']['historical_color'] ?? null)->toBe('#2D5D5A');
+    expect($chart['props']['forecast_color'] ?? null)->toBe('#EC7C0E');
+
+    // json_encode() drops the trailing .0 on whole-number floats, so
+    // json_decode() hands these back as plain ints — not a data problem
+    // (native's JSONArray/JSONSerialization parse either shape as a number).
+    $data = json_decode($chart['props']['data'] ?? '{}', true);
+    expect($data['historical'])->toBe([100, null]);
+    expect($data['forecast'])->toBe([100, 120]);
 });
 
-// `<rect @press>` bars compile with the callback id at the wire node's TOP
-// LEVEL (on_press), the same as the stock-history chart's own bars — not
-// nested under props like `<button @press>`. Confirmed against
-// tests/Feature/ItemDetailScreenTest.php's `stock-history-chart-bar-0`
-// assertion.
-it('selects a bar via the real binding and shows a Réalisé/Prévu readout', function () {
-    fakeForecastsEndpoint(historical: [sampleHistoricalDay(['revenue' => 88.5])], forecasts: []);
+// `on_change` is registered against the bare `selectBar` method (unlike the
+// old per-bar `<rect @press="selectBar({{ $index }})">`, which baked the
+// index into the expression) — the native renderer reads the tapped point's
+// index and sends it as the callback's runtime argument via the same
+// TAB_CHANGE wire event native:tab-row uses. See
+// packages/lumexio/native-line-chart's LineChartRenderer (Kotlin/Swift).
+it('selects a chart point via the real binding and shows a Réalisé/Prévu readout', function () {
+    // Dated yesterday, not today's sampleHistoricalDay() default — today
+    // would already be preselected on load (see defaultSelectedBarIndex()),
+    // and calling selectBar(0) below would then toggle it back OFF instead
+    // of turning it on.
+    fakeForecastsEndpoint(historical: [sampleHistoricalDay(['revenue' => 88.5, 'date' => today()->subDay()->format('Y-m-d')])], forecasts: []);
 
     $screen = Native::test(Forecasts::class)
-        ->assertElement('rect', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-bar-0' && ($n['on_press'] ?? null) === callbackIdFor('selectBar(0)'));
+        ->assertElement('lumexio_line_chart', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-chart' && ($n['props']['on_change'] ?? null) === callbackIdFor('selectBar'));
 
     $screen->call('selectBar', 0);
 
     $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-tooltip' && str_contains($n['props']['text'] ?? '', 'Réalisé'));
+});
+
+it('preselects today on load, showing its readout without any tap', function () {
+    fakeForecastsEndpoint(historical: [sampleHistoricalDay(['revenue' => 88.5, 'date' => today()->format('Y-m-d')])], forecasts: []);
+
+    Native::test(Forecasts::class)
+        ->assertElement('lumexio_line_chart', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-chart' && ($n['props']['selected_index'] ?? null) === 0)
+        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-tooltip' && str_contains($n['props']['text'] ?? '', 'Réalisé'));
+});
+
+it('preselects nothing when today is outside the charted window', function () {
+    fakeForecastsEndpoint(historical: [sampleHistoricalDay(['date' => today()->subDays(2)->format('Y-m-d')])], forecasts: []);
+
+    $screen = Native::test(Forecasts::class);
+
+    $chart = findNodeByRef($screen->tree(), 'forecast-chart');
+    expect($chart['props']['selected_index'] ?? null)->toBeNull();
+    $screen->assertMissingElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-tooltip');
 });
 
 // The ref lives on the `pressable` row (needed by the selection test below
@@ -272,13 +304,16 @@ it('slices the chart to the last 14 historical days and first 7 forecast days wh
 
     fakeForecastsEndpoint(historical: $historicalDays, forecasts: $forecastDays);
 
-    $screen = Native::test(Forecasts::class);
-    $tree = $screen->tree();
+    $tree = Native::test(Forecasts::class)->tree();
+
+    $chart = findNodeByRef($tree, 'forecast-chart');
+    $data = json_decode($chart['props']['data'] ?? '{}', true);
 
     // chartSeries() slices to the last 14 historical days + first 7 forecast
-    // days = 21 bars total, regardless of how much data the API returned.
-    $barCount = collect(range(0, 40))->filter(fn (int $i) => findNodeByRef($tree, "forecast-bar-{$i}") !== null)->count();
-    expect($barCount)->toBe(21);
+    // days = 21 points total, regardless of how much data the API returned.
+    expect($data['dates'])->toHaveCount(21);
+    expect($data['historical'])->toHaveCount(21);
+    expect($data['forecast'])->toHaveCount(21);
 
     // slice(-14) on the 30 sorted historical days keeps indexes 16..29, so
     // index 0 of the combined series is historical[30-14] = historical[16]
@@ -289,11 +324,8 @@ it('slices the chart to the last 14 historical days and first 7 forecast days wh
     // combined series (14 historical + the 7th forecast day) is forecasts[6].
     $expectedLastDate = today()->addDays(7)->format('Y-m-d');
 
-    $screen->assertElement('rect', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-bar-0'
-            && str_contains($n['props']['a11y_label'] ?? '', $expectedFirstDate))
-        ->assertElement('rect', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-bar-20'
-            && str_contains($n['props']['a11y_label'] ?? '', $expectedLastDate))
-        ->assertMissingElement('rect', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-bar-21');
+    expect($data['dates'][0])->toBe($expectedFirstDate);
+    expect($data['dates'][20])->toBe($expectedLastDate);
 });
 
 it('shows a generic error instead of crashing on failure', function () {

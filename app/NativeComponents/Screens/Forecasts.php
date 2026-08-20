@@ -5,6 +5,7 @@ namespace App\NativeComponents\Screens;
 use App\NativeComponents\Concerns\HandlesApiErrors;
 use App\NativeComponents\Concerns\HasHeaderChrome;
 use App\Services\LumexioApi;
+use Carbon\Carbon;
 use Illuminate\View\View;
 use Native\Mobile\Edge\NativeComponent;
 
@@ -81,7 +82,6 @@ class Forecasts extends NativeComponent
         // — so that when both this and the screen's own fetch fail, the
         // screen's own error is the one left in $lastApiError.
         $this->loadCurrentUser();
-        $this->selectedBarIndex = null;
 
         $data = $this->callApi(fn () => app(LumexioApi::class)->get('/forecasts', array_filter([
             'product_id' => $this->selectedProductId,
@@ -90,6 +90,7 @@ class Forecasts extends NativeComponent
         $this->historical = $data['historical'] ?? [];
         $this->forecasts = $data['forecasts'] ?? [];
         $this->summary = $data['summary'] ?? [];
+        $this->selectedBarIndex = $this->defaultSelectedBarIndex();
 
         $this->loadStockCategories();
         $this->loadStock();
@@ -412,6 +413,21 @@ class Forecasts extends NativeComponent
     }
 
     /**
+     * Chart index to preselect on load, so the tooltip/marker shows today's
+     * point instead of an empty chart — the index whose `date` matches
+     * today, not just the last historical entry, since a quiet day can
+     * leave today absent from the API's historical rows entirely. Null
+     * (no preselection) when today isn't in the charted window.
+     */
+    private function defaultSelectedBarIndex(): ?int
+    {
+        $today = Carbon::today()->format('Y-m-d');
+        $index = collect($this->chartSeries())->search(fn (array $row) => $row['date'] === $today);
+
+        return $index === false ? null : $index;
+    }
+
+    /**
      * Confidence percentage shown in the header readout: the shop-level
      * summary's confidence when no product is selected, otherwise the mean
      * confidence across the *charted* forecast days (chartSeries()'s
@@ -436,12 +452,27 @@ class Forecasts extends NativeComponent
         return $scores->isEmpty() ? null : (int) round($scores->avg());
     }
 
-    public function barHeight(float $value): int
+    /**
+     * Null-padded revenue series for the native line chart, mirroring the
+     * web app's Chart.js "two datasets with nulls, spanGaps: false"
+     * technique: `historical` carries values up to the last historical day
+     * then nulls, `forecast` carries nulls up to that same day (inclusive —
+     * the historical value is repeated there) then its own values. Sharing
+     * that index is what makes the two curves visually join instead of
+     * rendering as a gap.
+     *
+     * @return array{historical: list<float|null>, forecast: list<float|null>, dates: list<string>}
+     */
+    public function chartData(): array
     {
-        $values = array_column($this->chartSeries(), 'revenue');
-        $max = max($values ?: [1]);
+        $series = $this->chartSeries();
+        $joinIndex = collect($series)->search(fn (array $row) => $row['type'] === 'forecast');
 
-        return $max > 0 ? max(4, (int) round(($value / $max) * 72)) : 4;
+        return [
+            'historical' => collect($series)->map(fn (array $row) => $row['type'] === 'historical' ? $row['revenue'] : null)->values()->all(),
+            'forecast' => collect($series)->map(fn (array $row, int $i) => $row['type'] === 'forecast' || ($joinIndex !== false && $i === $joinIndex - 1) ? $row['revenue'] : null)->values()->all(),
+            'dates' => collect($series)->pluck('date')->values()->all(),
+        ];
     }
 
     public function selectBar(int $index): void

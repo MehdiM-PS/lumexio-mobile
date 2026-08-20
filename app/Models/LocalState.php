@@ -9,7 +9,7 @@ class LocalState extends Model
 {
     protected $table = 'local_state';
 
-    protected $fillable = ['token', 'shop_id', 'active_shop_name', 'unread_alert_count'];
+    protected $fillable = ['token', 'shop_id', 'active_shop_name', 'unread_alert_count', 'push_token'];
 
     protected function casts(): array
     {
@@ -37,6 +37,7 @@ class LocalState extends Model
             'shop_id' => null,
             'active_shop_name' => null,
             'unread_alert_count' => 0,
+            'push_token' => null,
         ]);
     }
 }

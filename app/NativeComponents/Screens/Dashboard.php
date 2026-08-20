@@ -6,8 +6,12 @@ use App\Models\LocalState;
 use App\NativeComponents\Concerns\HandlesApiErrors;
 use App\NativeComponents\Concerns\HasHeaderChrome;
 use App\Services\LumexioApi;
+use App\Services\PushNotificationService;
 use Illuminate\View\View;
+use Native\Mobile\Attributes\On;
 use Native\Mobile\Edge\NativeComponent;
+use Native\Mobile\Events\PushNotification\TokenGenerated;
+use Native\Mobile\Facades\PushNotifications;
 
 class Dashboard extends NativeComponent
 {
@@ -52,6 +56,34 @@ class Dashboard extends NativeComponent
         $this->dayScope = now()->hour < self::DAY_SWITCH_HOUR ? 0 : 1;
 
         $this->load();
+
+        PushNotifications::enroll();
+
+        // enroll() is async — TokenGenerated only reaches this screen while
+        // it's on the stack. Tab switches remount this screen (mount() runs
+        // again each time), so a token that arrived while the user was on
+        // another tab would otherwise be lost. getToken() is a synchronous
+        // read of whatever's already cached device-side, giving every
+        // remount a chance to pick up and register a token missed earlier.
+        if (filled($token = PushNotifications::getToken())) {
+            $this->handleTokenGenerated($token);
+        }
+    }
+
+    /**
+     * Fires once permission is granted and a device token becomes available.
+     * Only registered with the API when the token actually changed, so an
+     * unchanged token isn't re-posted every time this screen remounts (e.g.
+     * switching tabs back to Accueil).
+     */
+    #[On(TokenGenerated::class)]
+    public function handleTokenGenerated(string $token): void
+    {
+        if ($token === LocalState::current()->push_token) {
+            return;
+        }
+
+        $this->callApi(fn () => app(PushNotificationService::class)->register($token));
     }
 
     public function dayScopeValue(): string

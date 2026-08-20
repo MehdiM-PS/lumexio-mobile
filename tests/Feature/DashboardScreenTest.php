@@ -6,6 +6,10 @@ use App\NativeComponents\Screens\Dashboard;
 use Carbon\Carbon;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Native\Mobile\Events\PushNotification\TokenGenerated;
+use Native\Mobile\Facades\Device;
+use Native\Mobile\Facades\PushNotifications;
+use Native\Mobile\Facades\System;
 use Native\Mobile\Testing\Native;
 
 afterEach(function () {
@@ -175,7 +179,7 @@ it('defaults to today and requests metrics with day=today when opened at or afte
 
     $screen = Native::visit('/dashboard');
 
-    expect($screen->get('dayScope'))->toBe(0);
+    expect($screen->get('dayScope'))->toBe(1);
     Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/dashboard/metrics')
         && ($request['day'] ?? null) === 'today');
 });
@@ -190,7 +194,7 @@ it('defaults to yesterday and requests metrics with day=yesterday when opened be
 
     $screen = Native::visit('/dashboard');
 
-    expect($screen->get('dayScope'))->toBe(1);
+    expect($screen->get('dayScope'))->toBe(0);
     Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/dashboard/metrics')
         && ($request['day'] ?? null) === 'yesterday');
 });
@@ -203,9 +207,9 @@ it('switches to yesterday and re-fetches metrics with day=yesterday', function (
     fakeDashboardEndpoints();
 
     $screen = Native::visit('/dashboard');
-    $screen->call('setDayScope', 1);
+    $screen->call('setDayScope', 0);
 
-    expect($screen->get('dayScope'))->toBe(1);
+    expect($screen->get('dayScope'))->toBe(0);
     Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/dashboard/metrics')
         && ($request['day'] ?? null) === 'yesterday');
 });
@@ -225,10 +229,10 @@ it('reuses cached responses when switching day scope back and forth, instead of 
 
     $screen = Native::visit('/dashboard'); // day=today, 8 calls
 
-    $screen->call('setDayScope', 1); // day=yesterday: 2 new calls (metrics, widgets), 6 replayed from cache
+    $screen->call('setDayScope', 0); // day=yesterday: 2 new calls (metrics, widgets), 6 replayed from cache
     Http::assertSentCount(10);
 
-    $screen->call('setDayScope', 0); // back to day=today: already cached from mount, 0 new calls
+    $screen->call('setDayScope', 1); // back to day=today: already cached from mount, 0 new calls
     Http::assertSentCount(10);
 });
 
@@ -253,16 +257,16 @@ it('re-fetches metrics with day=yesterday when the on-device toggle fires a real
     fakeDashboardEndpoints();
 
     $screen = Native::visit('/dashboard');
-    $screen->fireEvent('dashboard-day-scope', $screen::EVENT_TAB_CHANGE, ['value' => 1]);
+    $screen->fireEvent('dashboard-day-scope', $screen::EVENT_TAB_CHANGE, ['value' => 0]);
 
-    expect($screen->get('dayScope'))->toBe(1);
+    expect($screen->get('dayScope'))->toBe(0);
     Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/dashboard/metrics')
         && ($request['day'] ?? null) === 'yesterday');
 });
 
 it('switches the hero card day label from CA aujourd\'hui to CA d\'hier when dayScope changes', function () {
     // Asserted on the label's own `ref`, not a plain assertSee — the
-    // button-group toggle's own :options="['Aujourd\'hui', 'Hier']" already
+    // button-group toggle's own :options="['Hier', 'Aujourd\'hui']" already
     // renders those literal strings elsewhere on this screen, so a
     // substring assertion would pass vacuously even if the hero label were
     // still hardcoded. Copy per the mockup (line 82): "CA {{dayLabelLower}}".
@@ -276,7 +280,7 @@ it('switches the hero card day label from CA aujourd\'hui to CA d\'hier when day
     $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-hero-day-label'
         && ($n['props']['text'] ?? null) === "CA aujourd'hui");
 
-    $screen->call('setDayScope', 1);
+    $screen->call('setDayScope', 0);
 
     $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'dashboard-hero-day-label'
         && ($n['props']['text'] ?? null) === "CA d'hier");
@@ -293,7 +297,7 @@ it('fetches widgets scoped to the current day and stores them', function () {
 
     expect($screen->get('widgets')['ca_forecast_percent'])->toBe(62.5);
 
-    $screen->call('setDayScope', 1);
+    $screen->call('setDayScope', 0);
 
     Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/dashboard/widgets')
         && ($request['day'] ?? null) === 'yesterday');
@@ -685,4 +689,60 @@ it('caches the active shop name in LocalState on refresh', function () {
     Native::test(Dashboard::class);
 
     expect(LocalState::current()->fresh()->active_shop_name)->toBe('Boutique Principale');
+});
+
+it('enrolls for push notifications on mount', function () {
+    fakeDashboardEndpoints();
+    PushNotifications::shouldReceive('enroll')->once();
+    PushNotifications::shouldReceive('getToken')->andReturn(null);
+
+    Native::test(Dashboard::class);
+});
+
+it('registers a newly generated push token with the API', function () {
+    fakeDashboardEndpoints();
+    PushNotifications::shouldReceive('enroll')->once();
+    PushNotifications::shouldReceive('getToken')->andReturn(null);
+    Device::shouldReceive('getId')->andReturn('device-abc');
+    System::shouldReceive('isIos')->andReturn(true);
+    Http::fake(['*/auth/push-token' => Http::response(['message' => 'OK'], 200)]);
+
+    $screen = Native::test(Dashboard::class);
+    $screen->emitNative(TokenGenerated::class, ['token' => 'token-123']);
+
+    Http::assertSent(fn ($request) => $request->method() === 'POST'
+        && str_contains((string) $request->url(), '/auth/push-token')
+        && $request['token'] === 'token-123'
+        && $request['device_id'] === 'device-abc');
+    expect(LocalState::current()->fresh()->push_token)->toBe('token-123');
+});
+
+it('does not re-register a push token that has not changed', function () {
+    LocalState::current()->update(['push_token' => 'token-123']);
+    fakeDashboardEndpoints();
+    PushNotifications::shouldReceive('enroll')->once();
+    PushNotifications::shouldReceive('getToken')->andReturn(null);
+
+    $screen = Native::test(Dashboard::class);
+    $screen->emitNative(TokenGenerated::class, ['token' => 'token-123']);
+
+    Http::assertNotSent(fn ($request) => str_contains((string) $request->url(), '/auth/push-token'));
+});
+
+// Tab switches remount Dashboard (see the cache-TTL test above), and a
+// TokenGenerated event fired while this screen was off-stack is otherwise
+// lost — mount()'s synchronous getToken() read is the recovery path.
+it('registers a push token that arrived while the screen was off the stack', function () {
+    fakeDashboardEndpoints();
+    PushNotifications::shouldReceive('enroll')->once();
+    PushNotifications::shouldReceive('getToken')->andReturn('token-recovered');
+    Device::shouldReceive('getId')->andReturn('device-abc');
+    System::shouldReceive('isIos')->andReturn(true);
+    Http::fake(['*/auth/push-token' => Http::response(['message' => 'OK'], 200)]);
+
+    Native::test(Dashboard::class);
+
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/auth/push-token')
+        && $request['token'] === 'token-recovered');
+    expect(LocalState::current()->fresh()->push_token)->toBe('token-recovered');
 });

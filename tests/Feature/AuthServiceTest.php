@@ -4,6 +4,7 @@ use App\Exceptions\Api\ServerErrorApiException;
 use App\Models\LocalState;
 use App\Services\AuthService;
 use Illuminate\Support\Facades\Http;
+use Native\Mobile\Facades\Device;
 
 it('logs in, stores the token, and returns the user', function () {
     Http::fake(['*/auth/login' => Http::response([
@@ -31,13 +32,30 @@ it('returns the current user via me', function () {
 });
 
 it('clears local state on logout even if the remote call fails', function () {
-    LocalState::current()->update(['token' => 'existing-token', 'shop_id' => 'shop-1']);
+    LocalState::current()->update(['token' => 'existing-token', 'shop_id' => 'shop-1', 'push_token' => 'push-token-123']);
     Http::fake(['*/auth/logout' => Http::response(['message' => 'boom'], 500)]);
 
     app(AuthService::class)->logout();
 
     $fresh = LocalState::current()->fresh();
-    expect($fresh->token)->toBeNull()->and($fresh->shop_id)->toBeNull();
+    expect($fresh->token)->toBeNull()
+        ->and($fresh->shop_id)->toBeNull()
+        ->and($fresh->push_token)->toBeNull();
+});
+
+it('unregisters the push token on logout', function () {
+    LocalState::current()->update(['token' => 'existing-token', 'push_token' => 'push-token-123']);
+    Device::shouldReceive('getId')->andReturn('device-abc');
+    Http::fake([
+        '*/auth/logout' => Http::response(['message' => 'OK'], 200),
+        '*/auth/push-token' => Http::response(['message' => 'OK'], 200),
+    ]);
+
+    app(AuthService::class)->logout();
+
+    Http::assertSent(fn ($request) => $request->method() === 'DELETE'
+        && str_contains((string) $request->url(), '/auth/push-token')
+        && $request['device_id'] === 'device-abc');
 });
 
 it('reports whether a token is stored', function () {

@@ -27,3 +27,4 @@ Thumbs.db
 # Vibe service (deployed separately from R2)
 vibe-service/
 public/vibe/
+/google-services.json

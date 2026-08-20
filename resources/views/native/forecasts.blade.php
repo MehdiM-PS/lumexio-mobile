@@ -34,17 +34,16 @@
                 </text>
             @endif
 
-            <row class="w-full items-end gap-1 h-[80]">
-                @foreach ($series as $index => $bar)
-                    <rect
-                        ref="forecast-bar-{{ $index }}"
-                        class="flex-1 rounded-sm {{ $selectedBarIndex === $index ? 'bg-theme-primary' : ($bar['type'] === 'historical' ? 'bg-theme-primary/50' : 'bg-theme-accent/60') }}"
-                        height="{{ $this->barHeight($bar['revenue']) }}"
-                        a11y-label="{{ $bar['date'] }} — {{ $bar['type'] === 'historical' ? 'Réalisé' : 'Prévu' }} : {{ number_format($bar['revenue'], 2, ',', ' ') }} €"
-                        @press="selectBar({{ $index }})"
-                    />
-                @endforeach
-            </row>
+            <native:lumexio-line-chart
+                ref="forecast-chart"
+                :data="$this->chartData()"
+                historical-color="{{ theme('primary') }}"
+                forecast-color="{{ theme('accent') }}"
+                :selected-index="$selectedBarIndex"
+                @change="selectBar"
+                a11y-label="Évolution du chiffre d'affaires : réalisé et prévu"
+                class="w-full h-[140]"
+            />
         @endif
 
         <text class="text-base font-bold text-theme-on-surface pt-2">Stock &amp; réapprovisionnement</text>
