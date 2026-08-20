@@ -42,13 +42,17 @@
                 </text>
             </column>
         </row>
-        @if ($heroDelta !== null)
+        @if ($widgets['ca_forecast_percent'] !== null)
             <column class="w-full gap-1">
-                <progress-bar value="{{ abs($heroDelta) / 100 }}" class="w-full"/>
+                <progress-bar value="{{ abs($widgets['ca_forecast_percent']) / 100 }}" class="w-full"/>
                 <row class="w-full justify-between items-center">
-                    <text ref="dashboard-hero-delta"
+                    {{--<text ref="dashboard-hero-delta"
                           class="text-sm font-semibold {{ $heroDelta >= 0 ? 'text-theme-success' : 'text-theme-destructive' }}">
                         {{ $heroDelta >= 0 ? '↑' : '↓' }} {{ number_format(abs($heroDelta), 0, ',', ' ') }}%
+                    </text>--}}
+                    <text ref="dashboard-hero-delta"
+                          class="text-sm font-semibold {{ $widgets['ca_forecast_percent'] >= 100 ? 'text-theme-success' : 'text-theme-destructive' }}">
+                        {{ number_format(abs($widgets['ca_forecast_percent']), 0, ',', ' ') }}% atteint
                     </text>
                     <text ref="dashboard-hero-revenue-forecast"
                           class="text-sm font-semibold text-theme-on-surface-variant">

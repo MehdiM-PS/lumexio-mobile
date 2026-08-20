@@ -6,7 +6,7 @@ it('sets the Lumexio brand colors as the light theme', function () {
     expect($light['primary'])->toBe('#2D5D5A')
         ->and($light['on-primary'])->toBe('#FFFFFF')
         ->and($light['secondary'])->toBe('#6D6F78')
-        ->and($light['background'])->toBe('#FAFAF8')
+        ->and($light['background'])->toBe('#F2F2F7')
         ->and($light['surface'])->toBe('#FFFFFF')
         ->and($light['surface-variant'])->toBe('#F0EDE8')
         ->and($light['outline'])->toBe('#14111111') // wire format: AARRGGBB, from authored CSS #11111114
@@ -24,6 +24,13 @@ it('auto-derives dark mode instead of hand-writing a palette', function () {
     expect($dark)->not()->toBeEmpty()
         ->and($dark['primary'])->toMatch('/^#[0-9A-F]{6}$/')
         ->and($dark['primary'])->not()->toBe(config('native-ui.theme.light.primary'));
+});
+
+it('pins background and surface to Apple\'s grouped-background dark values', function () {
+    $dark = config('native-ui.theme.dark');
+
+    expect($dark['background'])->toBe('#000000')
+        ->and($dark['surface'])->toBe('#1C1C1E');
 });
 
 it('has no bundled app-wide default font, falling back to the system font', function () {

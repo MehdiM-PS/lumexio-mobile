@@ -48,7 +48,9 @@ return [
 
             'surface' => '#FFFFFF',
             'on-surface' => '#14151A',
-            'background' => '#FAFAF8',
+            // Apple's systemGroupedBackground (light) — the grouped-list backdrop
+            // behind cards, matching secondarySystemGroupedBackground (`surface`).
+            'background' => '#F2F2F7',
             'on-background' => '#14151A',
 
             'surface-variant' => '#F0EDE8',
@@ -70,13 +72,19 @@ return [
         ],
 
         'dark' => [
-            // Left empty on purpose — auto-derived from `light` by luminance inversion.
+            // Apple's systemGroupedBackground / secondarySystemGroupedBackground
+            // (dark) — pinned to the real system values rather than a luminance
+            // inversion of the light tokens. Everything else auto-derives.
+            'background' => '#000000',
+            'surface' => '#1C1C1E',
         ],
 
         // Corner radii (points / dp).
+        // radius-lg matches Apple's inset-grouped card corner radius (10pt),
+        // used across the app for card/block surfaces (`rounded-lg`).
         'radius-sm' => 6,
         'radius-md' => 10,
-        'radius-lg' => 14,
+        'radius-lg' => 10,
         'radius-full' => 9999,
 
         // Font size scale (points / sp).
