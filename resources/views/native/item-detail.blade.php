@@ -65,20 +65,20 @@
         </row>
     @endif
 
+    {{-- Bars, tooltip and per-bar selection all live inside the chart's web
+    view now — tapping a bar highlights it and shows its date and quantity
+    without a round-trip through PHP. --}}
     @if (count($historyQuantities) > 0)
         <text class="text-base font-semibold text-theme-on-background">Historique de stock</text>
-        @if ($selectedBarIndex !== null)
-            <text ref="stock-history-chart-tooltip" class="text-sm text-theme-on-surface-variant">
-                {{ $historyLabels[$selectedBarIndex] ?? '' }} — {{ $historyQuantities[$selectedBarIndex] ?? 0 }} en stock
-            </text>
-        @endif
-        <canvas class="w-full h-[80]">
-            <row class="w-full h-full items-end justify-between gap-2">
-                @foreach ($historyQuantities as $value)
-                    <rect ref="stock-history-chart-bar-{{ $loop->index }}" class="flex-1 rounded-sm {{ $selectedBarIndex === $loop->index ? 'bg-theme-primary' : 'bg-theme-primary/50' }}" height="{{ $this->barHeight($value) }}" a11y-label="{{ $historyLabels[$loop->index] ?? '' }} — {{ $value }} en stock" @press="selectBar({{ $loop->index }})" />
-                @endforeach
-            </row>
-        </canvas>
+        <native:lumexio-chart
+            ref="stock-history-chart"
+            type="bar"
+            :labels="$historyLabels"
+            :series="$this->historySeries()"
+            unit=" en stock"
+            a11y-label="Historique de stock"
+            class="w-full h-[120]"
+        />
     @endif
 
     @if ($item['type'] === 'product')

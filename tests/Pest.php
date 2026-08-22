@@ -106,6 +106,31 @@ function findNodeByRef(array $node, string $ref): ?array
 }
 
 /**
+ * The chart configuration a `<native:lumexio-chart>` node hands to its web
+ * view, decoded back into PHP.
+ *
+ * The element renders as a core `webview` wire node whose `html` prop is a
+ * whole self-contained document (see Lumexio\NativeCharts\ChartDocument), so
+ * there are no per-series wire props left to assert against — the data lives
+ * in the `window.__LUMEXIO_CHART__` literal the document inlines. Pulling it
+ * back out here keeps chart assertions about the data and not about the
+ * document's exact markup.
+ *
+ * @param  array<string, mixed>|null  $node  A wire node, e.g. from findNodeByRef().
+ * @return array<string, mixed>
+ */
+function chartConfig(?array $node): array
+{
+    $html = $node['props']['html'] ?? '';
+
+    if (! preg_match('/^window\.__LUMEXIO_CHART__=(.*);$/m', $html, $matches)) {
+        return [];
+    }
+
+    return json_decode($matches[1], true) ?? [];
+}
+
+/**
  * Shared AI-recommendation fixture used by RecommendationsOpenTabTest and
  * RecommendationsActionedTabTest. Lives here (not file-local to either test)
  * because Pest's `--filter` still loads every Feature test file during suite

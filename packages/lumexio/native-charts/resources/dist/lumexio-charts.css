@@ -1,0 +1,195 @@
+/*
+ * Styling for the chart document. Deliberately plain CSS — no build step, no
+ * Tailwind: this stylesheet is inlined into a sandboxed web view whose engine
+ * on Android may be several years old, and Tailwind v4's `@theme` breaks
+ * there. Colors come from custom properties the engine sets from the app's
+ * native-ui theme.
+ */
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    /* Transparent so the chart sits on whatever the native screen paints
+       behind the web view — the renderers give it a clear background. */
+    background: transparent;
+    color: var(--text, #14151A);
+    font: 400 12px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overscroll-behavior: none;
+}
+
+.wrap {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    position: relative;
+}
+
+#chart {
+    flex: 1 1 auto;
+    min-height: 0;
+    position: relative;
+    /* Vertical drags belong to the screen underneath (the chart lives inside
+       a scrolling native column); horizontal drags and pinches are ours. */
+    touch-action: pan-y;
+    cursor: default;
+}
+
+#chart svg {
+    display: block;
+    overflow: visible;
+}
+
+.ax {
+    fill: var(--muted, #6D6F78);
+    font-size: 10px;
+}
+
+.ct {
+    fill: var(--text, #14151A);
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.cs {
+    fill: var(--muted, #6D6F78);
+    font-size: 10px;
+}
+
+.empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--muted, #6D6F78);
+    font-size: 12px;
+}
+
+/* Entry animation, first paint only — the engine stamps `enter` on the
+   first SVG it builds and never again, so re-renders driven by a tap, a
+   legend toggle or a resize don't replay it. */
+.cv.enter .ln,
+.cv.enter .fill {
+    animation: fade 420ms ease-out both;
+}
+
+.cv.enter .br {
+    animation: grow 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    transform-origin: center bottom;
+}
+
+.cv.enter .sl {
+    animation: fade 420ms ease-out both;
+}
+
+@keyframes fade {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes grow {
+    from {
+        opacity: 0;
+        transform: scaleY(0.05);
+    }
+
+    to {
+        opacity: 1;
+        transform: scaleY(1);
+    }
+}
+
+/* Tooltip — an HTML overlay rather than SVG text, so it can wrap, round its
+   corners and stay readable over any part of the plot. */
+#tip {
+    position: absolute;
+    top: 2px;
+    z-index: 2;
+    max-width: 78%;
+    padding: 6px 8px;
+    border-radius: 8px;
+    background: var(--tip-bg, #14151A);
+    color: var(--tip-text, #FFFFFF);
+    font-size: 11px;
+    line-height: 1.4;
+    pointer-events: none;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+}
+
+#tip[hidden] {
+    display: none;
+}
+
+#tip strong {
+    display: block;
+    font-size: 10px;
+    opacity: 0.7;
+    font-weight: 600;
+}
+
+#tip .r {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+#tip .r i,
+.lg i {
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
+    flex: 0 0 auto;
+    align-self: center;
+}
+
+#tip .r b {
+    font-weight: 700;
+}
+
+#tip .r em {
+    font-style: normal;
+    opacity: 0.65;
+}
+
+/* Legend */
+#legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    padding: 4px 2px 0;
+    flex: 0 0 auto;
+}
+
+#legend[hidden] {
+    display: none;
+}
+
+.lg {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 4px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted, #6D6F78);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.lg.off {
+    opacity: 0.4;
+    text-decoration: line-through;
+}

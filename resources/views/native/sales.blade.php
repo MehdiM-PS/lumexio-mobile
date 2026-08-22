@@ -83,49 +83,64 @@
             </column>
         @endif
 
+        {{-- Both series charts (and the category donut below) are drawn by
+        the chart engine inside a web view: bars, axis labels and the
+        per-point readout come from the same document, so the hand-rolled
+        bar/label rows that used to live here are gone. --}}
         <text class="text-base font-semibold text-theme-on-background mt-[10]">Évolution du CA</text>
         <column class="w-full rounded-lg border border-theme-outline bg-theme-surface p-[14]">
-            <row class="w-full items-end gap-[6] h-[90]">
-                @foreach ($caChart['values'] as $i => $value)
-                    <column ref="sales-ca-bar-{{ $i }}" class="flex-1 rounded-t bg-theme-primary" height="{{ $this->barHeightPx($caChart, $i, 90) }}" a11y-label="{{ $caChart['labels'][$i] ?? '' }} — {{ number_format($value, 2, ',', ' ') }} €" />
-                @endforeach
-            </row>
-            <row class="w-full gap-[6] mt-[6]">
-                @foreach ($caChart['labels'] as $i => $label)
-                    <text ref="sales-ca-bar-{{ $i }}-label" class="flex-1 text-center text-[10] text-theme-on-surface-variant">{{ $label }}</text>
-                @endforeach
-            </row>
+            <native:lumexio-chart
+                ref="sales-ca-chart"
+                type="bar"
+                :labels="$caChart['labels']"
+                :series="$this->caSeries()"
+                unit=" €"
+                :decimals="2"
+                a11y-label="Évolution du chiffre d’affaires"
+                class="w-full h-[130]"
+            />
         </column>
 
         <text class="text-base font-semibold text-theme-on-background mt-[10]">Panier moyen</text>
         <column class="w-full rounded-lg border border-theme-outline bg-theme-surface p-[14]">
-            <row class="w-full items-end gap-[6] h-[70]">
-                @foreach ($basketChart['values'] as $i => $value)
-                    <column ref="sales-basket-bar-{{ $i }}" class="flex-1 rounded-t bg-[#c9a97a]" height="{{ $this->barHeightPx($basketChart, $i, 70) }}" a11y-label="{{ $basketChart['labels'][$i] ?? '' }} — {{ number_format($value, 2, ',', ' ') }} €" />
-                @endforeach
-            </row>
-            <row class="w-full gap-[6] mt-[6]">
-                @foreach ($basketChart['labels'] as $i => $label)
-                    <text ref="sales-basket-bar-{{ $i }}-label" class="flex-1 text-center text-[10] text-theme-on-surface-variant">{{ $label }}</text>
-                @endforeach
-            </row>
+            <native:lumexio-chart
+                ref="sales-basket-chart"
+                type="bar"
+                :labels="$basketChart['labels']"
+                :series="$this->basketSeries()"
+                unit=" €"
+                :decimals="2"
+                a11y-label="Panier moyen"
+                class="w-full h-[110]"
+            />
         </column>
 
+        {{-- The per-category proportional bars became one donut: share of a
+        whole is what the section is about, and the donut's tap-a-slice
+        readout gives the € and the % the bars could only imply. The rows
+        below stay — a merchant scanning exact amounts shouldn't have to tap
+        five slices to read five numbers. --}}
         <text class="text-base font-semibold text-theme-on-background mt-[10]">CA par catégorie</text>
+        @if (count($categoryBreakdown) > 0)
+            <column class="w-full rounded-lg border border-theme-outline bg-theme-surface p-[14]">
+                <native:lumexio-chart
+                    ref="sales-category-chart"
+                    type="donut"
+                    :labels="$this->categoryLabels()"
+                    :series="$this->categorySeries()"
+                    unit=" €"
+                    :decimals="2"
+                    a11y-label="Répartition du chiffre d’affaires par catégorie"
+                    class="w-full h-[230]"
+                />
+            </column>
+        @endif
         <column class="w-full gap-2">
             @forelse ($categoryBreakdown as $cat)
-                <column class="w-full gap-2 rounded-lg border border-theme-outline bg-theme-surface p-[12]">
-                    <row class="w-full justify-between">
-                        <text class="text-sm font-semibold text-theme-on-surface">{{ $cat['label'] }}</text>
-                        <text class="text-sm font-semibold text-theme-on-surface">{{ number_format($cat['amount'], 2, ',', ' ') }} € · {{ $cat['pct'] }}%</text>
-                    </row>
-                    <row class="w-full h-[6] rounded-full bg-theme-surface-variant">
-                        {{-- max(2, ...): the width-percent branch is also >0-guarded natively
-                             (see barHeightPx()'s docblock) — a literal 0% would drop the width
-                             constraint entirely rather than rendering an empty fill. --}}
-                        <column ref="sales-category-fill-{{ $loop->index }}" class="h-full rounded-full bg-theme-primary" width="{{ max(2, $cat['pct']) }}%" />
-                    </row>
-                </column>
+                <row ref="sales-category-row-{{ $loop->index }}" class="w-full justify-between rounded-lg border border-theme-outline bg-theme-surface px-[12] py-[10]">
+                    <text class="text-sm font-semibold text-theme-on-surface">{{ $cat['label'] }}</text>
+                    <text class="text-sm font-semibold text-theme-on-surface">{{ number_format($cat['amount'], 2, ',', ' ') }} € · {{ $cat['pct'] }}%</text>
+                </row>
             @empty
                 <text ref="sales-category-empty" class="text-sm text-theme-on-surface-variant">Aucune donnée de catégorie.</text>
             @endforelse

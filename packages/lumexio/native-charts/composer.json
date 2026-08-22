@@ -1,0 +1,23 @@
+{
+    "name": "lumexio/native-charts",
+    "description": "Interactive chart element for NativePHP Mobile — line, area, bar, stacked bar, horizontal bar, pie and donut, rendered as a self-contained SVG document inside a native web view.",
+    "type": "library",
+    "version": "1.0.0",
+    "license": "proprietary",
+    "require": {
+        "php": "^8.2",
+        "nativephp/mobile": "^4.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Lumexio\\NativeCharts\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Lumexio\\NativeCharts\\NativeChartsServiceProvider"
+            ]
+        }
+    }
+}

@@ -17,8 +17,6 @@ class ItemDetail extends NativeComponent
 
     public array $historyQuantities = [];
 
-    public ?int $selectedBarIndex = null;
-
     public string $thresholdInput = '';
 
     public string $leadTimeInput = '';
@@ -51,9 +49,6 @@ class ItemDetail extends NativeComponent
     private function load(): void
     {
         $this->resetApiError();
-        // Reset before the fetch so a stale index never survives into
-        // freshly-fetched data with a possibly-different length.
-        $this->selectedBarIndex = null;
 
         $data = $this->callApi(fn () => app(LumexioApi::class)->get('/products/stock-history', [
             'type' => $this->item['type'],
@@ -97,16 +92,16 @@ class ItemDetail extends NativeComponent
         }
     }
 
-    public function barHeight(int $value): int
+    /**
+     * The single stock-level series the history chart draws. Unnamed on
+     * purpose: with one series there is nothing to tell apart, so the chart
+     * skips the legend and the tooltip shows just the quantity.
+     *
+     * @return list<array{data: list<int>}>
+     */
+    public function historySeries(): array
     {
-        $max = max($this->historyQuantities ?: [1]);
-
-        return $max > 0 ? max(4, (int) round(($value / $max) * 72)) : 4;
-    }
-
-    public function selectBar(int $index): void
-    {
-        $this->selectedBarIndex = $this->selectedBarIndex === $index ? null : $index;
+        return [['data' => $this->historyQuantities]];
     }
 
     public function render(): View

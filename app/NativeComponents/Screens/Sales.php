@@ -178,33 +178,48 @@ class Sales extends NativeComponent
     }
 
     /**
-     * Absolute pixel bar height, not a percentage: EDGE's `height` attribute
-     * (unlike `width`, which also accepts a Tailwind-fraction-style percentage
-     * string) is read raw by NativeElementCollector::buildLayoutArray() with no
-     * percentage support, and `style="height:...%"` is never read at all (no
-     * renderer path parses a raw `style` attribute) — so a percentage here
-     * would render as either a nonsensical literal or nothing. $containerHeight
-     * is the caller's known fixed pixel height for the chart row it's scaling
-     * against (matches ItemDetail::barHeight()'s same absolute-pixel approach
-     * for the stock-history chart).
+     * Revenue series for the "Évolution du CA" chart.
      *
-     * Floors at 4px (matching ItemDetail::barHeight()'s own floor) rather than
-     * returning 0: both native height modifiers (iOS's NodeLayoutModifier,
-     * Android's NodeView) guard on `height > 0` — a literal 0 doesn't collapse
-     * the bar, it drops the height constraint entirely, letting the bar grow
-     * unbounded. A 4px floor renders a deliberate, barely-visible sliver
-     * instead.
+     * @return list<array{name: string, data: list<float>}>
      */
-    public function barHeightPx(array $chart, int $index, int $containerHeight): int
+    public function caSeries(): array
     {
-        $values = $chart['values'] ?? [];
-        $max = empty($values) ? 0 : max($values);
+        return [['name' => 'CA', 'data' => $this->caChart['values'] ?? []]];
+    }
 
-        if ($max <= 0) {
-            return 4;
-        }
+    /**
+     * Average-basket series. Carries its own color rather than taking the
+     * palette's first slot: the two charts sit one above the other and would
+     * otherwise both be brand teal, reading as one continuous series.
+     *
+     * @return list<array{name: string, data: list<float>, color: string}>
+     */
+    public function basketSeries(): array
+    {
+        return [['name' => 'Panier moyen', 'data' => $this->basketChart['values'] ?? [], 'color' => '#C9A97A']];
+    }
 
-        return max(4, (int) round((($values[$index] ?? 0) / $max) * $containerHeight));
+    /**
+     * Category names for the revenue-share donut.
+     *
+     * @return list<string>
+     */
+    public function categoryLabels(): array
+    {
+        return array_map(fn (array $category) => (string) ($category['label'] ?? ''), $this->categoryBreakdown);
+    }
+
+    /**
+     * Revenue per category, as the donut's single series — one slice per
+     * label. Amounts, not percentages: the chart derives the share itself,
+     * and a rounded server-side `pct` would leave the slices not quite
+     * summing to the whole.
+     *
+     * @return list<array{data: list<float>}>
+     */
+    public function categorySeries(): array
+    {
+        return [['data' => array_map(fn (array $category) => (float) ($category['amount'] ?? 0), $this->categoryBreakdown)]];
     }
 
     private function bucketize(array $labels, array $values, int $maxBars = 8): array

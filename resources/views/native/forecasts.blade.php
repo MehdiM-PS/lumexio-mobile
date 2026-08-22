@@ -23,26 +23,21 @@
             </row>
         @endif
 
+        {{-- The readout that used to live in a <text> above the chart is now
+        drawn inside it: the chart is a web view, so scrubbing it moves a
+        crosshair and updates a tooltip without a bridge round-trip per
+        touch. --}}
         @if (count($series) > 0)
-            @if ($selectedBarIndex !== null && isset($series[$selectedBarIndex]))
-                @php $selected = $series[$selectedBarIndex]; @endphp
-                <text ref="forecast-tooltip" class="text-xs text-theme-on-surface-variant">
-                    {{ $selected['date'] }} — {{ $selected['type'] === 'historical' ? 'Réalisé' : 'Prévu' }} : {{ number_format($selected['revenue'], 2, ',', ' ') }} €
-                    @if ($selected['confidence'] !== null)
-                        (confiance {{ $selected['confidence'] }}%)
-                    @endif
-                </text>
-            @endif
-
-            <native:lumexio-line-chart
+            <native:lumexio-chart
                 ref="forecast-chart"
-                :data="$this->chartData()"
-                historical-color="{{ theme('primary') }}"
-                forecast-color="{{ theme('accent') }}"
-                :selected-index="$selectedBarIndex"
-                @change="selectBar"
-                a11y-label="Évolution du chiffre d'affaires : réalisé et prévu"
-                class="w-full h-[140]"
+                type="area"
+                :labels="$this->chartLabels()"
+                :series="$this->chartDatasets()"
+                :focus="$this->chartFocus()"
+                unit=" €"
+                :decimals="2"
+                a11y-label="Évolution du chiffre d’affaires : réalisé et prévu"
+                class="w-full h-[180]"
             />
         @endif
 

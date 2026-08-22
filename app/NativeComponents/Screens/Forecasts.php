@@ -24,8 +24,6 @@ class Forecasts extends NativeComponent
 
     public ?string $selectedProductName = null;
 
-    public ?int $selectedBarIndex = null;
-
     public string $productSearch = '';
 
     public array $productResults = [];
@@ -90,7 +88,6 @@ class Forecasts extends NativeComponent
         $this->historical = $data['historical'] ?? [];
         $this->forecasts = $data['forecasts'] ?? [];
         $this->summary = $data['summary'] ?? [];
-        $this->selectedBarIndex = $this->defaultSelectedBarIndex();
 
         $this->loadStockCategories();
         $this->loadStock();
@@ -413,18 +410,31 @@ class Forecasts extends NativeComponent
     }
 
     /**
-     * Chart index to preselect on load, so the tooltip/marker shows today's
-     * point instead of an empty chart — the index whose `date` matches
-     * today, not just the last historical entry, since a quiet day can
-     * leave today absent from the API's historical rows entirely. Null
-     * (no preselection) when today isn't in the charted window.
+     * Chart index the crosshair opens on, so the readout shows today's point
+     * instead of an empty chart — the index whose `date` matches today, not
+     * just the last historical entry, since a quiet day can leave today
+     * absent from the API's historical rows entirely. Null (no highlight)
+     * when today isn't in the charted window.
      */
-    private function defaultSelectedBarIndex(): ?int
+    public function chartFocus(): ?int
     {
         $today = Carbon::today()->format('Y-m-d');
         $index = collect($this->chartSeries())->search(fn (array $row) => $row['date'] === $today);
 
         return $index === false ? null : $index;
+    }
+
+    /**
+     * Day-and-month x-axis labels — the API's ISO dates are far too wide for
+     * a phone-width axis.
+     *
+     * @return list<string>
+     */
+    public function chartLabels(): array
+    {
+        return collect($this->chartSeries())
+            ->map(fn (array $row) => Carbon::parse($row['date'])->format('d/m'))
+            ->all();
     }
 
     /**
@@ -453,31 +463,36 @@ class Forecasts extends NativeComponent
     }
 
     /**
-     * Null-padded revenue series for the native line chart, mirroring the
-     * web app's Chart.js "two datasets with nulls, spanGaps: false"
-     * technique: `historical` carries values up to the last historical day
-     * then nulls, `forecast` carries nulls up to that same day (inclusive —
-     * the historical value is repeated there) then its own values. Sharing
-     * that index is what makes the two curves visually join instead of
-     * rendering as a gap.
+     * The two null-padded datasets the chart draws, mirroring the web app's
+     * Chart.js "two datasets with nulls, spanGaps: false" technique:
+     * `Réalisé` carries values up to the last historical day then nulls,
+     * `Prévu` carries nulls up to that same day (inclusive — the historical
+     * value is repeated there) then its own values. Sharing that index is
+     * what makes the two curves visually join instead of rendering as a gap.
      *
-     * @return array{historical: list<float|null>, forecast: list<float|null>, dates: list<string>}
+     * Each forecast point carries its confidence score as a tooltip note, so
+     * scrubbing the chart surfaces the per-day confidence the header can
+     * only average.
+     *
+     * @return list<array{name: string, data: list<float|null>, dashed?: bool, notes?: list<string|null>}>
      */
-    public function chartData(): array
+    public function chartDatasets(): array
     {
-        $series = $this->chartSeries();
-        $joinIndex = collect($series)->search(fn (array $row) => $row['type'] === 'forecast');
+        $series = collect($this->chartSeries());
+        $joinIndex = $series->search(fn (array $row) => $row['type'] === 'forecast');
 
         return [
-            'historical' => collect($series)->map(fn (array $row) => $row['type'] === 'historical' ? $row['revenue'] : null)->values()->all(),
-            'forecast' => collect($series)->map(fn (array $row, int $i) => $row['type'] === 'forecast' || ($joinIndex !== false && $i === $joinIndex - 1) ? $row['revenue'] : null)->values()->all(),
-            'dates' => collect($series)->pluck('date')->values()->all(),
+            [
+                'name' => 'Réalisé',
+                'data' => $series->map(fn (array $row) => $row['type'] === 'historical' ? $row['revenue'] : null)->values()->all(),
+            ],
+            [
+                'name' => 'Prévu',
+                'dashed' => true,
+                'data' => $series->map(fn (array $row, int $i) => $row['type'] === 'forecast' || ($joinIndex !== false && $i === $joinIndex - 1) ? $row['revenue'] : null)->values()->all(),
+                'notes' => $series->map(fn (array $row) => $row['confidence'] === null ? null : "confiance {$row['confidence']} %")->values()->all(),
+            ],
         ];
-    }
-
-    public function selectBar(int $index): void
-    {
-        $this->selectedBarIndex = $this->selectedBarIndex === $index ? null : $index;
     }
 
     public function render(): View

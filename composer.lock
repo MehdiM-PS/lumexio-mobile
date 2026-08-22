@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "59a589e1df5a1436d1a1d9208846db9e",
+    "content-hash": "d38db8d23b56d779c00cb23c16cd9977",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -2589,37 +2589,34 @@
             "time": "2026-03-08T20:05:35+00:00"
         },
         {
-            "name": "lumexio/native-line-chart",
-            "version": "dev-develop",
+            "name": "lumexio/native-charts",
+            "version": "1.0.0",
             "dist": {
                 "type": "path",
-                "url": "packages/lumexio/native-line-chart",
-                "reference": "1b92a4a723952561cdf1154cd49bd731b7bb13c5"
+                "url": "packages/lumexio/native-charts",
+                "reference": "fcc725e8234eb9cdb392ac4a9b907c0529268e06"
             },
             "require": {
                 "nativephp/mobile": "^4.0",
                 "php": "^8.2"
             },
-            "type": "nativephp-ui-plugin",
+            "type": "library",
             "extra": {
                 "laravel": {
                     "providers": [
-                        "Lumexio\\NativeLineChart\\NativeLineChartServiceProvider"
+                        "Lumexio\\NativeCharts\\NativeChartsServiceProvider"
                     ]
-                },
-                "nativephp": {
-                    "manifest": "nativephp.json"
                 }
             },
             "autoload": {
                 "psr-4": {
-                    "Lumexio\\NativeLineChart\\": "src/"
+                    "Lumexio\\NativeCharts\\": "src/"
                 }
             },
             "license": [
                 "proprietary"
             ],
-            "description": "Smooth native line/area chart EDGE component for NativePHP Mobile, matching the Lumexio web app's forecast chart.",
+            "description": "Interactive chart element for NativePHP Mobile — line, area, bar, stacked bar, horizontal bar, pie and donut, rendered as a self-contained SVG document inside a native web view.",
             "transport-options": {
                 "relative": true
             }
@@ -10798,14 +10795,12 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {
-        "lumexio/native-line-chart": 20
-    },
+    "stability-flags": {},
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
         "php": "^8.4"
     },
     "platform-dev": {},
-    "plugin-api-version": "2.9.0"
+    "plugin-api-version": "2.6.0"
 }
