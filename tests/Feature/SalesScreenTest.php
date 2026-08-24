@@ -192,15 +192,17 @@ it('spells out both month names for the year-to-date period when it crosses mont
     expect($screen->instance()->salesDateRangeLabel())->toBe('01 janvier – 17 août 2026');
 });
 
-it('shows the x-axis labels under the CA and basket charts', function () {
-    // Mock (lines 276-280, 292-296): each chart renders a label row under
-    // the bars using the same series labels already used for a11y-label.
+// Each chart is one `webview` wire node carrying its whole document
+// (Lumexio\NativeCharts) — the engine inside draws the bars, the axis and the
+// tap readout, so these assert the data and labels PHP hands it rather than a
+// per-bar node.
+it('hands the CA and basket charts their x-axis labels', function () {
     fakeSalesEndpoints();
 
     $tree = Native::test(Sales::class)->tree();
 
-    expect(findNodeByRef($tree, 'sales-ca-bar-0-label')['props']['text'] ?? null)->toBe('S1');
-    expect(findNodeByRef($tree, 'sales-basket-bar-0-label')['props']['text'] ?? null)->toBe('S1');
+    expect(chartConfig(findNodeByRef($tree, 'sales-ca-chart'))['labels'])->toBe(['S1', 'S2', 'S3']);
+    expect(chartConfig(findNodeByRef($tree, 'sales-basket-chart'))['labels'])->toBe(['S1', 'S2', 'S3']);
 });
 
 it('gives the comparison table columns a flex weight so they align across rows', function () {
@@ -270,100 +272,62 @@ it('passes a short chart series through unchanged', function () {
     expect($bucketed['values'])->toBe([100.0, 200.0, 300.0]);
 });
 
-it('renders the CA chart bars with an absolute pixel height proportional to their value', function () {
+it('hands the CA chart its revenue series', function () {
     // Default fixture: revenue_margin values are [100.0, 200.0, 300.0] (3
-    // items, no bucketizing). Container height is 90px (matches the row's
-    // h-[90] class in the blade), so bar 0 (100/300 of max) => round(90/3) =
-    // 30px, and the max-value bar (index 2) => the full 90px. Proves the
-    // bar renders as a raw `height` attribute (an absolute pixel value in
-    // the resolved layout), not the framework-inert `style="height:...%"`
-    // the brief originally specified.
+    // items, no bucketizing).
     fakeSalesEndpoints();
 
-    $tree = Native::test(Sales::class)->tree();
+    $config = chartConfig(findNodeByRef(Native::test(Sales::class)->tree(), 'sales-ca-chart'));
 
-    $bar0 = findNodeByRef($tree, 'sales-ca-bar-0');
-    $bar2 = findNodeByRef($tree, 'sales-ca-bar-2');
-
-    expect($bar0)->not->toBeNull();
-    expect($bar2)->not->toBeNull();
-    // The `height` attribute is coerced to float somewhere in the Blade
-    // attribute pipeline before it reaches the resolved layout (unrelated
-    // to barHeightPx()'s own int return type) — assert the float it
-    // actually carries rather than the PHP-side int.
-    expect($bar0['layout']['height'] ?? null)->toBe(30.0);
-    expect($bar2['layout']['height'] ?? null)->toBe(90.0);
+    expect($config['type'])->toBe('bar');
+    expect($config['unit'])->toBe(' €');
+    expect($config['series'][0]['name'])->toBe('CA');
+    expect($config['series'][0]['data'])->toBe([100, 200, 300]);
 });
 
-it('renders the basket chart bars with an absolute pixel height proportional to their value', function () {
-    // Mirrors the CA chart bar-height test above, but for the Panier moyen
-    // chart: fake charts.avg_cart.avgCart is [50.0, 60.0, 70.0] (3 items, no
-    // bucketizing). Container height is 70px (matches the row's h-[70] class
-    // in the blade), so bar 0 (50/70 of max) => round(70*50/70) = 50px, and
-    // the max-value bar (index 2) => the full 70px. This is the only test
-    // covering the avgCart field, which is camelCase unlike its sibling
-    // `revenue` — a typo there would leave every other test green.
+it('hands the basket chart its own series and color', function () {
+    // Mirrors the CA chart test above, for the Panier moyen chart. This is
+    // the only test covering the avgCart field, which is camelCase unlike
+    // its sibling `revenue` — a typo there would leave every other test
+    // green. The explicit color keeps the two stacked charts from both
+    // rendering in the palette's first (brand teal) slot.
     fakeSalesEndpoints(['charts' => ['avg_cart' => ['labels' => ['S1', 'S2', 'S3'], 'avgCart' => [50.0, 60.0, 70.0], 'groupBy' => 'daily']]]);
 
-    $tree = Native::test(Sales::class)->tree();
+    $config = chartConfig(findNodeByRef(Native::test(Sales::class)->tree(), 'sales-basket-chart'));
 
-    $bar0 = findNodeByRef($tree, 'sales-basket-bar-0');
-    $bar2 = findNodeByRef($tree, 'sales-basket-bar-2');
-
-    expect($bar0)->not->toBeNull();
-    expect($bar2)->not->toBeNull();
-    expect($bar0['layout']['height'] ?? null)->toBe(50.0);
-    expect($bar2['layout']['height'] ?? null)->toBe(70.0);
+    expect($config['series'][0]['data'])->toBe([50, 60, 70]);
+    expect($config['series'][0]['color'])->toBe('#C9A97A');
+    expect($config['series'][0]['color'])->not->toBe($config['palette'][0]);
 });
 
-it('renders the category breakdown fill with a percentage width', function () {
-    // Default fixture: category_breakdown[0].pct is 38. Proves the fill
-    // renders as a raw `width` attribute carrying a percentage string (a
-    // renderer-supported route, unlike `style="width:...%"`), not merely
-    // baked into a class the wire tree can't be asserted against.
+it('renders the category breakdown as a donut of per-category amounts', function () {
+    // Default fixture: category_breakdown[0] is Chaussures at 34 200 €. The
+    // donut is fed amounts, not the server's rounded `pct` — it derives the
+    // share itself, so the slices always sum to the whole.
     fakeSalesEndpoints();
 
     $tree = Native::test(Sales::class)->tree();
+    $config = chartConfig(findNodeByRef($tree, 'sales-category-chart'));
 
-    $fill = findNodeByRef($tree, 'sales-category-fill-0');
+    expect($config['type'])->toBe('donut');
+    expect($config['labels'])->toBe(['Chaussures', 'Vêtements']);
+    expect($config['series'][0]['data'])->toBe([34200, 27900]);
 
-    expect($fill)->not->toBeNull();
-    expect($fill['layout']['width'] ?? null)->toBe('38%');
+    // The exact amounts stay readable without tapping a slice.
+    expect(findNodeByRef($tree, 'sales-category-row-0'))->not->toBeNull();
 });
 
-it('floors chart bars at a non-zero pixel height when every value is zero', function () {
-    // A shop with zero revenue for the selected period returns an all-zero
-    // series. barHeightPx()'s $max <= 0 branch must not return a literal 0:
-    // both native height modifiers (iOS NodeLayoutModifier, Android NodeView)
-    // guard on `height > 0` and skip applying the constraint entirely when
-    // it's 0, so every bar would grow unbounded instead of collapsing —
-    // worse than invisible. A floored value (>0) keeps the height
-    // constraint applied on both platforms.
-    fakeSalesEndpoints(['charts' => ['revenue_margin' => ['labels' => ['S1', 'S2', 'S3'], 'revenue' => [0.0, 0.0, 0.0], 'margin' => [0.0, 0.0, 0.0]]]]);
+it('hides the category donut but keeps the empty state when there is no breakdown', function () {
+    fakeSalesEndpoints(['charts' => ['category_breakdown' => []]]);
 
-    $tree = Native::test(Sales::class)->tree();
-    $bar0 = findNodeByRef($tree, 'sales-ca-bar-0');
+    // array_replace_recursive (see fakeSalesEndpoints()) leaves a list
+    // untouched when the override is [], so clear it on the instance to
+    // exercise the empty branch.
+    $screen = Native::test(Sales::class);
+    $screen->set('categoryBreakdown', []);
 
-    expect($bar0)->not->toBeNull();
-    expect($bar0['layout']['height'] ?? null)->toBeGreaterThan(0);
-});
-
-it('floors the category fill width at a non-zero percentage when pct is zero', function () {
-    // Same >0 guard applies to the width-percent branch — a literal "0%"
-    // would drop the width constraint entirely rather than rendering an
-    // empty fill.
-    fakeSalesEndpoints(['charts' => ['category_breakdown' => [
-        ['label' => 'Accessoires', 'amount' => 0.0, 'pct' => 0],
-    ]]]);
-
-    $tree = Native::test(Sales::class)->tree();
-    $fill = findNodeByRef($tree, 'sales-category-fill-0');
-
-    expect($fill)->not->toBeNull();
-    $width = $fill['layout']['width'] ?? null;
-
-    expect($width)->not->toBe('0%');
-    expect((float) rtrim((string) $width, '%'))->toBeGreaterThan(0);
+    expect(findNodeByRef($screen->tree(), 'sales-category-chart'))->toBeNull();
+    $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'sales-category-empty');
 });
 
 it('shows empty states for category breakdown and top products when both are empty', function () {

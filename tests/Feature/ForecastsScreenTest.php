@@ -113,15 +113,15 @@ it('fetches the shop-level forecast and historical data on mount', function () {
     Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/forecasts') && ! isset($request['product_id']));
 });
 
-// The chart is a single `lumexio_line_chart` wire node (Lumexio\NativeLineChart
-// plugin — see packages/lumexio/native-line-chart) carrying the whole series
-// as a JSON-encoded `data` prop, plus resolved theme hex colors: the
-// historical-color prop must resolve the primary token (#2D5D5A,
-// config/native-ui.php) and forecast-color the accent token (#EC7C0E). The
-// forecast array repeats the last historical value at the join index (see
-// chartData()) so the native renderer's two curves visually connect instead
-// of leaving a gap.
-it('renders the line chart with theme colors and a null-padded, joined historical/forecast series', function () {
+// The chart is a single `webview` wire node whose `html` prop is the whole
+// self-contained chart document (Lumexio\NativeCharts — see
+// packages/lumexio/native-charts). Its two null-padded datasets repeat the
+// last historical value at the join index (see chartDatasets()) so the
+// realised and forecast curves visually connect instead of leaving a gap,
+// and the default palette resolves the theme's primary (#2D5D5A,
+// config/native-ui.php) then accent (#EC7C0E) tokens — series 0 and 1
+// respectively.
+it('renders an area chart with theme colors and a null-padded, joined historical/forecast series', function () {
     fakeForecastsEndpoint(
         historical: [sampleHistoricalDay(['date' => today()->format('Y-m-d'), 'revenue' => 100.0])],
         forecasts: [sampleForecastDay(['forecast_date' => today()->addDay()->format('Y-m-d'), 'predicted_revenue' => 120.0])],
@@ -132,54 +132,55 @@ it('renders the line chart with theme colors and a null-padded, joined historica
     $chart = findNodeByRef($tree, 'forecast-chart');
 
     expect($chart)->not->toBeNull();
-    expect($chart['type'])->toBe('lumexio_line_chart');
-    expect($chart['props']['historical_color'] ?? null)->toBe('#2D5D5A');
-    expect($chart['props']['forecast_color'] ?? null)->toBe('#EC7C0E');
+    expect($chart['type'])->toBe('webview');
+    // Without it the document is inert — everything the chart draws is JS.
+    expect($chart['props']['javascript'] ?? null)->toBeTrue();
 
-    // json_encode() drops the trailing .0 on whole-number floats, so
-    // json_decode() hands these back as plain ints — not a data problem
-    // (native's JSONArray/JSONSerialization parse either shape as a number).
-    $data = json_decode($chart['props']['data'] ?? '{}', true);
-    expect($data['historical'])->toBe([100, null]);
-    expect($data['forecast'])->toBe([100, 120]);
+    $config = chartConfig($chart);
+
+    expect($config['type'])->toBe('area');
+    expect($config['palette'][0])->toBe('#2D5D5A');
+    expect($config['palette'][1])->toBe('#EC7C0E');
+    expect($config['series'][0]['name'])->toBe('Réalisé');
+    expect($config['series'][0]['data'])->toBe([100, null]);
+    expect($config['series'][1]['name'])->toBe('Prévu');
+    expect($config['series'][1]['dashed'])->toBeTrue();
+    expect($config['series'][1]['data'])->toBe([100, 120]);
 });
 
-// `on_change` is registered against the bare `selectBar` method (unlike the
-// old per-bar `<rect @press="selectBar({{ $index }})">`, which baked the
-// index into the expression) — the native renderer reads the tapped point's
-// index and sends it as the callback's runtime argument via the same
-// TAB_CHANGE wire event native:tab-row uses. See
-// packages/lumexio/native-line-chart's LineChartRenderer (Kotlin/Swift).
-it('selects a chart point via the real binding and shows a Réalisé/Prévu readout', function () {
-    // Dated yesterday, not today's sampleHistoricalDay() default — today
-    // would already be preselected on load (see defaultSelectedBarIndex()),
-    // and calling selectBar(0) below would then toggle it back OFF instead
-    // of turning it on.
-    fakeForecastsEndpoint(historical: [sampleHistoricalDay(['revenue' => 88.5, 'date' => today()->subDay()->format('Y-m-d')])], forecasts: []);
+// The per-point readout moved inside the web view: scrubbing the chart moves
+// its own crosshair and tooltip with no bridge round-trip, so the screen no
+// longer carries a `selectBar` callback or a `forecast-tooltip` text node.
+// What PHP still decides is where the crosshair *starts* (`focus`) and what
+// each forecast point says about its confidence (the series' `notes`).
+it('hands the chart per-day confidence notes for its forecast points', function () {
+    fakeForecastsEndpoint(
+        historical: [sampleHistoricalDay(['date' => today()->format('Y-m-d'), 'revenue' => 100.0])],
+        forecasts: [sampleForecastDay(['forecast_date' => today()->addDay()->format('Y-m-d'), 'confidence_score' => 82])],
+    );
 
-    $screen = Native::test(Forecasts::class)
-        ->assertElement('lumexio_line_chart', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-chart' && ($n['props']['on_change'] ?? null) === callbackIdFor('selectBar'));
+    $config = chartConfig(findNodeByRef(Native::test(Forecasts::class)->tree(), 'forecast-chart'));
 
-    $screen->call('selectBar', 0);
-
-    $screen->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-tooltip' && str_contains($n['props']['text'] ?? '', 'Réalisé'));
+    expect($config['series'][1]['notes'])->toBe([null, 'confiance 82 %']);
 });
 
-it('preselects today on load, showing its readout without any tap', function () {
+it('opens the crosshair on today', function () {
     fakeForecastsEndpoint(historical: [sampleHistoricalDay(['revenue' => 88.5, 'date' => today()->format('Y-m-d')])], forecasts: []);
 
-    Native::test(Forecasts::class)
-        ->assertElement('lumexio_line_chart', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-chart' && ($n['props']['selected_index'] ?? null) === 0)
-        ->assertElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-tooltip' && str_contains($n['props']['text'] ?? '', 'Réalisé'));
+    $config = chartConfig(findNodeByRef(Native::test(Forecasts::class)->tree(), 'forecast-chart'));
+
+    expect($config['focus'])->toBe(0);
+    expect($config['labels'])->toBe([today()->format('d/m')]);
 });
 
-it('preselects nothing when today is outside the charted window', function () {
+it('opens with no crosshair when today is outside the charted window', function () {
     fakeForecastsEndpoint(historical: [sampleHistoricalDay(['date' => today()->subDays(2)->format('Y-m-d')])], forecasts: []);
 
     $screen = Native::test(Forecasts::class);
 
-    $chart = findNodeByRef($screen->tree(), 'forecast-chart');
-    expect($chart['props']['selected_index'] ?? null)->toBeNull();
+    // Absent, not null: the engine reads a missing `focus` as "nothing
+    // highlighted", and sending an explicit null would be read as index 0.
+    expect(chartConfig(findNodeByRef($screen->tree(), 'forecast-chart')))->not->toHaveKey('focus');
     $screen->assertMissingElement('text', fn (array $n): bool => ($n['ref'] ?? null) === 'forecast-tooltip');
 });
 
@@ -306,26 +307,25 @@ it('slices the chart to the last 14 historical days and first 7 forecast days wh
 
     $tree = Native::test(Forecasts::class)->tree();
 
-    $chart = findNodeByRef($tree, 'forecast-chart');
-    $data = json_decode($chart['props']['data'] ?? '{}', true);
+    $config = chartConfig(findNodeByRef($tree, 'forecast-chart'));
 
     // chartSeries() slices to the last 14 historical days + first 7 forecast
     // days = 21 points total, regardless of how much data the API returned.
-    expect($data['dates'])->toHaveCount(21);
-    expect($data['historical'])->toHaveCount(21);
-    expect($data['forecast'])->toHaveCount(21);
+    expect($config['labels'])->toHaveCount(21);
+    expect($config['series'][0]['data'])->toHaveCount(21);
+    expect($config['series'][1]['data'])->toHaveCount(21);
 
     // slice(-14) on the 30 sorted historical days keeps indexes 16..29, so
     // index 0 of the combined series is historical[30-14] = historical[16]
     // (the 17th of the 30 days).
-    $expectedFirstDate = today()->subDays(29 - 16)->format('Y-m-d');
+    $expectedFirstDate = today()->subDays(29 - 16)->format('d/m');
 
     // take(7) on the sorted forecasts keeps the first 7, so index 20 of the
     // combined series (14 historical + the 7th forecast day) is forecasts[6].
-    $expectedLastDate = today()->addDays(7)->format('Y-m-d');
+    $expectedLastDate = today()->addDays(7)->format('d/m');
 
-    expect($data['dates'][0])->toBe($expectedFirstDate);
-    expect($data['dates'][20])->toBe($expectedLastDate);
+    expect($config['labels'][0])->toBe($expectedFirstDate);
+    expect($config['labels'][20])->toBe($expectedLastDate);
 });
 
 it('shows a generic error instead of crashing on failure', function () {

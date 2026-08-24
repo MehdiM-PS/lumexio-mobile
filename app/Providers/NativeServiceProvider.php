@@ -3,7 +3,6 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use Lumexio\NativeLineChart\NativeLineChartServiceProvider;
 use Native\Mobile\Providers\BrowserServiceProvider;
 use Native\Mobile\UI\NativeUIServiceProvider;
 
@@ -39,7 +38,6 @@ class NativeServiceProvider extends ServiceProvider
         return [
             NativeUIServiceProvider::class,
             BrowserServiceProvider::class,
-            NativeLineChartServiceProvider::class,
             // PushServiceProvider::class, // disabled: needs an Apple Developer account for the
             // push-notifications capability/aps-environment entitlement on iOS. Re-enable (and
             // re-add the Lumi\NativePush\PushServiceProvider import) once that's set up.
